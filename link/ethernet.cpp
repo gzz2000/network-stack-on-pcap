@@ -59,7 +59,11 @@ int startCapturing(int id) {
     while((res = pcap_next_ex(device->fp, &header, &pkt_data)) >= 0) {
         if(res == 0) continue;
         fprintf(stderr, "Received a packet with len=%d at %ld us\n", header->len, header->ts.tv_usec);
-        callback(pkt_data, header->len, id);
+        int ret = callback(pkt_data, header->len, id);
+        if(ret < 0) {
+            fprintf(stderr, "[Error] callback failed (%d), capture aborted\n", ret);
+            return -1;
+        }
     }
 
     if(res == -1) {
