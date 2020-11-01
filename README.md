@@ -1,4 +1,15 @@
 # Lab2
+Author: Zizheng Guo
+
+I'm still working on this. Kindly credit me if it helps you.
+
+## Compile
+```bash
+mkdir build
+cd build
+cmake ..
+make
+```
 
 ## Tips
 I wrote some useful scripts outside this repo.
