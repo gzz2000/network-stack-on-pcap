@@ -7,6 +7,7 @@
 
 #include "common.hpp"
 #include "device.hpp"
+#include "inc/common.hpp"
 
 /** 
  * @brief Encapsulate some data into an Ethernet II frame and send it.
@@ -20,7 +21,7 @@
  * @see addDevice
  */
 int sendFrame(const void* buf, int len, 
-    int ethtype, const void* destmac, int id);
+    int ethtype, mac_t destmac, int id);
 
 /** 
  * @brief Process a frame upon receiving it.

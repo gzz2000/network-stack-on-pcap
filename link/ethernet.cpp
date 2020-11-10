@@ -7,7 +7,7 @@
 // One can refer to the link below.
 // https://www.winpcap.org/docs/docs_40_2/html/group__wpcap__tut8.html
 
-int sendFrame(const void *buf, int len, int ethtype, const void *destmac, int id) {
+int sendFrame(const void *buf, int len, int ethtype, mac_t destmac, int id) {
     if(len < 46 || len > 1500) {
         fprintf(stderr, "[Error] sendFrame: len=%d is invalid for Ethernet II.\n", len);
         return -1;

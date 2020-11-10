@@ -1,10 +1,11 @@
 #pragma once
 
 #include <pcap.h>
+#include "inc/common.hpp"
 
 struct Device {
     pcap_t *fp;
-    u_char mac[6];
+    mac_t mac;
 };
 
 // internal function for obtaining device info
