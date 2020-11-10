@@ -36,7 +36,7 @@ int sendFrame(const void *buf, int len, int ethtype, const void *destmac, int id
     return 0;
 }
 
-frameReceiveCallback callback;
+static frameReceiveCallback callback;
 
 int setFrameReceiveCallback(frameReceiveCallback new_callback) {
     callback = new_callback;

@@ -13,7 +13,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -lpthread -O2 -Wall -Wextra -Wconver
 
 include_directories(PUBLIC "${PROJECT_SOURCE_DIR}")
 
-add_library(link link/device.cpp link/ethernet.cpp link/getmac.cpp)
+add_library(link link/device.cpp link/ethernet.cpp link/getmac.cpp link/compose.cpp)
 target_link_libraries(link PUBLIC ${PCAP_LIBRARY})
 
 add_subdirectory(app)
