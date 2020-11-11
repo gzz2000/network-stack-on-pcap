@@ -12,6 +12,7 @@
 #include "inc/common.hpp"
 
 const int ETHER_TYPE_ROUTING = 0x2333;
+const int ETHER_TYPE_IPv4 = 0x0800;
 const int MAX_HOP = 1000;  // when hop count > this, entries are deleted
 
 /**
@@ -45,7 +46,7 @@ struct RoutingInformation {
  * As a result, you also need to parse and pass the source mac address when calling.
  * 
  */
-void onRoutingPacket(const void *buf, mac_t src_mac, int len, int id);
+void onRoutingPacket(const void *buf, int len, mac_t src_mac, int id);
 
 /**
  * @brief Query the routing table.

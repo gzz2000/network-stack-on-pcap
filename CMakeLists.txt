@@ -16,7 +16,7 @@ include_directories(PUBLIC "${PROJECT_SOURCE_DIR}")
 add_library(link link/device.cpp link/ethernet.cpp link/getaddr.cpp link/compose.cpp)
 target_link_libraries(link PUBLIC ${PCAP_LIBRARY})
 
-add_library(ip ip/routing.cpp)
+add_library(ip ip/routing.cpp ip/ip.cpp)
 target_link_libraries(ip PUBLIC ${PCAP_LIBRARY} link)
 
 add_subdirectory(app)

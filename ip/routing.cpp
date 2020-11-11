@@ -87,12 +87,12 @@ void setRoutingTable(RoutingTableEntry rte_new) {
     routing_table.push_front(rte_new);
 }
 
-void onRoutingPacket(const void *buf, mac_t src_mac, int len, int id) {
+void onRoutingPacket(const void *buf, int len, mac_t src_mac, int id) {
     if(len < sizeof(int) ||
-       len != (sizeof(int) + sizeof(RoutingInformation) * *(const int *)buf)) {
+       len < (sizeof(int) + sizeof(RoutingInformation) * *(const int *)buf)) {
         fprintf(stderr,
                 "[IP Error]"
-                " invalid length of routing packet: %d from device %d. Dropping it.\n",
+                " too small length of routing packet: %d from device %d. Dropping it.\n",
                 len, id);
         return;
     }
@@ -147,7 +147,7 @@ void debugPrintRoutingTable() {
     if(this_hash == last_hash) return;
     last_hash = this_hash;
 
-    fprintf(stderr, "Routing Table Changed:\n");
+    fprintf(stderr, "======================================\nRouting Table Changed:\n");
     for(const RoutingTableEntry &rte: routing_table) {
         fprintf(stderr, "IP %s, MASK %s -> Device %d, MAC %s, hop=%d\n",
                 ip2str(rte.dest).c_str(), ip2str(rte.mask).c_str(),
@@ -155,4 +155,5 @@ void debugPrintRoutingTable() {
                 mac2str(rte.next_hop_mac).c_str(),
                 rte.hop);
     }
+    fprintf(stderr, "======================================\n");
 }
