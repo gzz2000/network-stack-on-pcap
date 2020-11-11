@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <string>
 #include "inc/common.hpp"
 
 void getMACAddress(const char *device, mac_t store) {
@@ -29,4 +30,15 @@ ip_t getIPAddress(const char *device) {
     strncpy(ifr.ifr_name, device, IFNAMSIZ - 1);
     ioctl(fd, SIOCGIFADDR, &ifr);
     return ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+}
+
+std::string ip2str(ip_t ip) {
+    return inet_ntoa((struct in_addr){ip});
+}
+
+std::string mac2str(const mac_t mac) {
+    char ret[20];
+    sprintf(ret, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return ret;
 }

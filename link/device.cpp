@@ -2,9 +2,6 @@
 #include <pcap.h>
 #include <unordered_map>
 #include <vector>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include "device.hpp"
 #include "device_internal.hpp"
 #include "getaddr.hpp"
@@ -32,9 +29,9 @@ int addDevice(const char *device) {
     getMACAddress(device, mac);
     active_devices[id].ip = getIPAddress(device);
 
-    fprintf(stderr, "Opened adapter '%s' with MAC address %.2x:%.2x:%.2x:%.2x:%.2x:%.2x, system configured IP address %s.\n",
-            device, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-            inet_ntoa((struct in_addr){active_devices[id].ip}));
+    fprintf(stderr, "Opened adapter '%s' with MAC address %s, system configured IP address %s.\n",
+            device, mac2str(mac).c_str(),
+            ip2str(active_devices[id].ip).c_str());
     
     device2id[device] = id;
     return id;
@@ -46,6 +43,9 @@ int findDevice(const char *device) {
 }
 
 Device *getDeviceInfo(int id) {
-    if(id < 0 || id >= (int)active_devices.size()) return NULL;
+    if(id < 0 || id >= (int)active_devices.size()) {
+        fprintf(stderr, "[Error] Device id %d invalid.\n", id);
+        return NULL;
+    }
     return &active_devices[id];
 }
