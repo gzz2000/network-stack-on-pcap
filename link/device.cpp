@@ -2,9 +2,12 @@
 #include <pcap.h>
 #include <unordered_map>
 #include <vector>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include "device.hpp"
 #include "device_internal.hpp"
-#include "getmac.hpp"
+#include "getaddr.hpp"
 
 std::unordered_map<std::string, int> device2id;
 std::vector<Device> active_devices;
@@ -27,8 +30,11 @@ int addDevice(const char *device) {
     active_devices[id].fp = fp;
     u_char *mac = active_devices[id].mac;
     getMACAddress(device, mac);
+    active_devices[id].ip = getIPAddress(device);
 
-    fprintf(stderr, "Opened adapter '%s' with MAC address %.2x:%.2x:%.2x:%.2x:%.2x:%.2x.\n", device, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    fprintf(stderr, "Opened adapter '%s' with MAC address %.2x:%.2x:%.2x:%.2x:%.2x:%.2x, system configured IP address %s.\n",
+            device, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+            inet_ntoa((struct in_addr){active_devices[id].ip}));
     
     device2id[device] = id;
     return id;

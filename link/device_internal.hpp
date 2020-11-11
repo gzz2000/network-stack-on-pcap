@@ -6,6 +6,7 @@
 struct Device {
     pcap_t *fp;
     mac_t mac;
+    ip_t ip;
 };
 
 // internal function for obtaining device info
