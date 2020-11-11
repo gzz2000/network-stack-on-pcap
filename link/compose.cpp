@@ -7,7 +7,8 @@ void startComposedCapturing(std::vector<int> interfaces) {
         threads.emplace_back(startCapturing, id);
     }
     for(std::thread &t: threads) {
-        t.join();
+        t.detach();
     }
-    fprintf(stderr, "startComposedCapturing reached the end. No capture running.\n");
+    fprintf(stderr, "startComposedCapturing launched %d threads.\n",
+            (int)interfaces.size());
 }

@@ -11,7 +11,7 @@
 /**
  * @brief start capturing on a multiple of device IDs
  * @param interfaces the list of device IDs to listen on
- * returns on error, in which case not all threads are released.
+ * will return after all threads are launched
  * 
  */
 void startComposedCapturing(std::vector<int> interfaces);
