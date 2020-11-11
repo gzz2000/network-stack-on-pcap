@@ -41,13 +41,14 @@ static int announceRoutingTable(const std::vector<int> &interfaces) {
         *(RoutingInformation *)buf_p = {rte.dest, rte.mask, rte.hop + 1};
         buf_p += sizeof(RoutingInformation);
     }
+    const mac_t broadcast_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     for(int id: interfaces) {
         Device *device = getDeviceInfo(id);
         if(device == NULL) {
             fprintf(stderr, "[IP Error] on getDeviceInfo. exiting announceRoutingTable\n");
             return -1;
         }
-        if(sendFrame(buf, len, ETHER_TYPE_ROUTING, device->mac, id) == -1) {
+        if(sendFrame(buf, len, ETHER_TYPE_ROUTING, broadcast_mac, id) == -1) {
             fprintf(stderr, "[IP Error] Failed to send routing table to device %d\n", id);
             return -1;
         }
@@ -65,7 +66,7 @@ void announceServiceWorker(const std::vector<int> interfaces) {
             fprintf(stderr, "[IP Error] announceRoutingTable failed\n");
             return;
         }
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(1000ms);
     }
 }
 
@@ -111,7 +112,7 @@ void onRoutingPacket(const void *buf, int len, mac_t src_mac, int id) {
     for(int i = 0; i < sz; ++i) {
         setRoutingTable({ri_p[i].dest, ri_p[i].mask, id,
                 {src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5]},
-                    ri_p[i].hop + 1});
+                    ri_p[i].hop});
     }
 
     // print

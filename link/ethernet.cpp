@@ -7,7 +7,7 @@
 // One can refer to the link below.
 // https://www.winpcap.org/docs/docs_40_2/html/group__wpcap__tut8.html
 
-int sendFrame(const void *buf, int len, int ethtype, mac_t destmac, int id) {
+int sendFrame(const void *buf, int len, int ethtype, const mac_t destmac, int id) {
     if(len > 1500) {
         fprintf(stderr, "[Error] sendFrame: len=%d is invalid for Ethernet II.\n", len);
         return -1;
@@ -58,7 +58,7 @@ int startCapturing(int id) {
     int res;
     while((res = pcap_next_ex(device->fp, &header, &pkt_data)) >= 0) {
         if(res == 0) continue;
-        fprintf(stderr, "Received a packet with len=%d at %ld us\n", header->len, header->ts.tv_usec);
+        // fprintf(stderr, "Received a packet with len=%d at %ld us\n", header->len, header->ts.tv_usec);
         int ret = callback(pkt_data, header->len, id);
         if(ret < 0) {
             fprintf(stderr, "[Error] callback failed (%d), capture aborted\n", ret);

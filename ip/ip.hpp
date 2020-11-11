@@ -11,9 +11,10 @@
 
 /**
  * @brief Scan and try to open live capture on all interfaces
+ * @param startsWith optional filter on interface name prefix
  * @return an array of all successfully opened devices
  */
-std::vector<int> scanAllDevices();
+std::vector<int> scanAllDevices(const char *startsWith = NULL);
 
 /**
  * @brief Start listening on all devices in background.

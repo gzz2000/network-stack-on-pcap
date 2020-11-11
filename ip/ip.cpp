@@ -8,7 +8,7 @@
 #include "ip.hpp"
 #include "routing.hpp"
 
-std::vector<int> scanAllDevices() {
+std::vector<int> scanAllDevices(const char *startsWith) {
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *interfaces;
     if(pcap_findalldevs(&interfaces, errbuf) == -1) {
@@ -17,6 +17,14 @@ std::vector<int> scanAllDevices() {
     }
     std::vector<int> ret;
     for(pcap_if_t *it = interfaces; it; it = it->next) {
+        if(startsWith) {
+            bool mismatch = false;
+            for(int i = 0; startsWith[i]; ++i) if(it->name[i] != startsWith[i]) {
+                    mismatch = true;
+                    break;
+                }
+            if(mismatch) continue;
+        }
         int id = addDevice(it->name);
         if(id != -1) ret.push_back(id);
     }
@@ -32,9 +40,10 @@ int setIPPacketReceiveCallback(IPPacketReceiveCallback callback) {
 }
 
 int frameCallback(const void *buf, int len, int id) {
+    const mac_t broadcast_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     mac_t mac;
     memcpy(mac, getDeviceInfo(id)->mac, sizeof(mac_t));
-    if(memcmp(buf, mac, 6) != 0) {
+    if(memcmp(buf, mac, 6) != 0 && memcmp(buf, broadcast_mac, 6) != 0) {
         // drop unintended packet
         return 0;
     }
