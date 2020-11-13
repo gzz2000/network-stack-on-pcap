@@ -8,6 +8,7 @@
 
 #include <netinet/ip.h>
 #include <vector>
+#include "inc/common.hpp"
 
 /**
  * @brief Scan and try to open live capture on all interfaces
@@ -32,7 +33,7 @@ void startIPService(const std::vector<int> &interfaces);
  * @param len Length of IP payload
  * @return 0 on success, -1 on error.
  */
-int sendIPPacket(const struct in_addr src, const struct in_addr dest, 
+int sendIPPacket(ip_t src, ip_t dest, 
     int proto, const void *buf, int len);
 
 /** 

@@ -12,7 +12,7 @@
 #include "inc/common.hpp"
 
 const int ETHER_TYPE_ROUTING = 0x2333;
-const int ETHER_TYPE_IPv4 = 0x0800;
+const int ETHER_TYPE_IP = 0x0800;
 const int MAX_HOP = 1000;  // when hop count > this, entries are deleted
 
 /**
