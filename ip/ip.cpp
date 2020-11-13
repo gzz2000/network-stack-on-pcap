@@ -59,8 +59,9 @@ static uint16_t computeIPHeaderChecksum(const void *buf) {
     return ~sum;
 }
 
-// sendIPPacket is called by frameCallback, and also by
+// forwardIPPacket is called by frameCallback, and also by
 // IP layer users through sendIPPacket.
+// forwardIPPacket assumes a valid IPv4 header. It should be checked before calling this.
 // it either forward the IP packet according to routing table,
 // or calling ip_callback if its destination is this host.
 // IMPORTANT NOTICE:
@@ -68,16 +69,6 @@ static uint16_t computeIPHeaderChecksum(const void *buf) {
 // not only thread-safe, but REENTRANT.
 // OTHERWISE, you should NEVER call sendIPPacket within a ip_callback.
 static int forwardIPPacket(const void *buf, int len) {
-    if(len < 20) {
-        fprintf(stderr, "[IP Error] forwardIPPacket bad packet with len=%d\n", len);
-        return -1;
-    }
-    uint8_t signature = *(const uint8_t *)buf;
-    uint8_t version = signature >> 4;
-    if(version != 4) {
-        fprintf(stderr, "[IP Error] cannot forward IPv%u\n", (uint32_t)version);
-        return -1;
-    }
     ip_t dest = *(const ip_t *)((char *)buf + 16);
     std::optional<RoutingTableEntry> rte = queryRoutingTable(dest);
     if(rte) {
@@ -89,8 +80,18 @@ static int forwardIPPacket(const void *buf, int len) {
             return 0;  // whether or not callback error, don't propagate error.
         }
         else {
-            sendFrame(buf, len, ETHER_TYPE_IP, rte->next_hop_mac, rte->next_device_id);
-            return 0;
+            if(*((const uint8_t *)buf + 8) == 0) {
+                fprintf(stderr, "Dropped a IP packet with TTL=0 dest %s\n",
+                        ip2str(dest).c_str());
+                // NOT IMPLEMENTED: sending back a ICMP message 11
+                return 0;
+            }
+            else {
+                fprintf(stderr, "Forwarding a IP packet dest %s to device %d\n",
+                        ip2str(dest).c_str(), rte->next_device_id);
+                sendFrame(buf, len, ETHER_TYPE_IP, rte->next_hop_mac, rte->next_device_id);
+                return 0;
+            }
         }
     }
     else {
@@ -117,13 +118,41 @@ int frameCallback(const void *buf, int len, int id) {
         return 0;
     }
     else if(ethtype == ETHER_TYPE_IP) {
-        // todo: only receive IPs correspond to our hosts, and forward other IPs.
-        // todo: check header checksum
-        return ip_callback((char *)buf + 14, len - 14);
+        if(len - 14 < 20) {
+            fprintf(stderr, "[IP Error] received IP frame with bad packet len=%d\n",
+                    len - 14);
+            return 0;
+        }
+        uint8_t *ip_buf = new uint8_t[len - 14];
+        memcpy(ip_buf, (const uint8_t *)buf + 14, len - 14);
+        uint8_t signature = *(const uint8_t *)ip_buf;
+        uint8_t version = signature >> 4;
+        if(version != 4) {
+            fprintf(stderr, "[IP Error] cannot work with IPv%u\n", (uint32_t)version);
+            delete[] ip_buf;
+            return 0;
+        }
+        
+        uint16_t checksum = *((const uint16_t *)ip_buf + 5);
+        if(computeIPHeaderChecksum(ip_buf) != checksum) {
+            fprintf(stderr, "[IP Error] received a IP packet with bad header checksum.\n");
+            delete[] ip_buf;
+            return 0;
+        }
+        
+        // decrement TTL and recompute checksum
+        --*((uint8_t *)ip_buf + 8);
+        *((uint16_t *)ip_buf + 5) = computeIPHeaderChecksum(ip_buf);
+        
+        // forward the packet.
+        // If the packet is to be routed but TTL=0, then discarded within this call.
+        int ret = forwardIPPacket(ip_buf, len - 14);
+        delete[] ip_buf;
+        return ret;
     }
     else {
         fprintf(stderr, "Unrecognized ethtype: 0x%04x\n", ethtype);
-        return 0;
+        return -1;
     }
 }
 

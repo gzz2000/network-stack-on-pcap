@@ -61,8 +61,8 @@ int startCapturing(int id) {
         // fprintf(stderr, "Received a packet with len=%d at %ld us\n", header->len, header->ts.tv_usec);
         int ret = callback(pkt_data, header->len, id);
         if(ret < 0) {
-            fprintf(stderr, "[Error] callback failed (%d), capture aborted\n", ret);
-            return -1;
+            fprintf(stderr, "[Error] ethernet callback failed (%d).\n", ret);
+            // return -1;   // we no longer abort capture on callback failure.
         }
     }
 
