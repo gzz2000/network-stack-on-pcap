@@ -23,8 +23,7 @@ static int initRoutingTable(const std::vector<int> &interfaces) {
         }
         setRoutingTable({device->ip, (ip_t)~0 /* single IP */,
                     -1 /* this device.*/,
-                    {device->mac[0], device->mac[1], device->mac[2],
-                            device->mac[3], device->mac[4], device->mac[5]},
+                    {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},  // doesn't matter
                     0});
     }
     return 0;

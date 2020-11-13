@@ -115,7 +115,7 @@ int frameCallback(const void *buf, int len, int id) {
     }
     int ethtype = ((char *)buf)[12] << 8 | ((char *)buf)[13];
     if(ethtype == ETHER_TYPE_ROUTING) {
-        onRoutingPacket((char *)buf + 14, len - 14, mac, id);
+        onRoutingPacket((char *)buf + 14, len - 14, (uint8_t *)buf + 6, id);
         return 0;
     }
     else if(ethtype == ETHER_TYPE_IP) {
