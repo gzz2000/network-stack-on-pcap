@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     if(argv[2] == std::string("send")) {
         printf("Enter receiver MAC address and a word as content, one line each.\n");
         while(true) {
-            char buf[SNAPLEN], macaddr[20], macaddr_machine[9];
+            char buf[SNAPLEN], macaddr[20];
             scanf("%s%s", macaddr, buf);
             struct ether_addr *ea = ether_aton(macaddr);
             if(ea == NULL) {

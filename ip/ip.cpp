@@ -74,12 +74,10 @@ static int forwardIPPacket(const void *buf, int len) {
     }
     uint8_t signature = *(const uint8_t *)buf;
     uint8_t version = signature >> 4;
-    uint8_t hdlen = signature & 15;
     if(version != 4) {
         fprintf(stderr, "[IP Error] cannot forward IPv%u\n", (uint32_t)version);
         return -1;
     }
-    uint32_t checksum;
     ip_t dest = *(const ip_t *)((char *)buf + 16);
     std::optional<RoutingTableEntry> rte = queryRoutingTable(dest);
     if(rte) {

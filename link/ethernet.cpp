@@ -70,4 +70,6 @@ int startCapturing(int id) {
         fprintf(stderr, "[Error] failed to read packets: %s\n", pcap_geterr(device->fp));
         return -1;
     }
+    fprintf(stderr, "startCapturing stopped for device %d.\n", id);
+    return 0;
 }
