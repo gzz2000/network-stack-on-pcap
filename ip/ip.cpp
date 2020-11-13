@@ -144,13 +144,13 @@ int sendIPPacket(ip_t src, ip_t dest,
     packet[1] = 0;       // TOS = original
     packet16[1] = htons(20 + len);  // Total Length
     packet16[2] = 0;     // Identification set to 0 as we don't need fragmentation
-    packet[6] = 1 << 7;  // Don't fragment Flag
+    packet[6] = 1 << 6;  // Don't fragment Flag
     packet[7] = 0;       // Fragment Offset set to zero
     packet[8] = 64;      // TTL = 64 same as Linux
     packet[9] = proto;   // Protocol
     packet32[3] = src;   // Source IP
     packet32[4] = dest;  // Destination IP
-    packet[5] = computeIPHeaderChecksum(packet);   // Header Checksum
+    packet16[5] = computeIPHeaderChecksum(packet);   // Header Checksum
     memcpy(packet + 20, buf, len);
     return forwardIPPacket(packet, len + 20);
 }
