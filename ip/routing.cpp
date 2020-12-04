@@ -3,9 +3,9 @@
 #include <thread>
 #include <chrono>
 #include "routing.hpp"
-#include "link/device_internal.hpp"
-#include "link/getaddr.hpp"
-#include "link/ethernet.hpp"
+#include "link/ethernet/device_internal.hpp"
+#include "link/ethernet/getaddr.hpp"
+#include "link/ethernet/ethernet.hpp"
 
 using namespace std::chrono_literals;
 

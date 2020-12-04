@@ -16,7 +16,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -lpthread -O2 -Wall -Wno-sign-compar
 
 include_directories(PUBLIC "${PROJECT_SOURCE_DIR}")
 
-add_library(link link/device.cpp link/ethernet.cpp link/getaddr.cpp link/compose.cpp)
+add_library(link link/ethernet/device.cpp link/ethernet/ethernet.cpp link/ethernet/getaddr.cpp link/ethernet/compose.cpp)
 target_link_libraries(link PUBLIC ${PCAP_LIBRARY} Threads::Threads)
 
 add_library(ip ip/routing.cpp ip/ip.cpp)

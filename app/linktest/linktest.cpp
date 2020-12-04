@@ -1,8 +1,8 @@
 #include <cstdio>
 #include <string>
 #include <cstring>
-#include <link/device.hpp>
-#include <link/ethernet.hpp>
+#include "link/ethernet/device.hpp"
+#include "link/ethernet/ethernet.hpp"
 #include <netinet/ether.h>
 
 int receiveCallback(const void *buf, int len, int id) {

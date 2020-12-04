@@ -3,11 +3,11 @@
 #include <thread>
 #include <arpa/inet.h>
 #include "inc/common.hpp"
-#include "link/getaddr.hpp"
-#include "link/device.hpp"
-#include "link/device_internal.hpp"
-#include "link/ethernet.hpp"
-#include "link/compose.hpp"
+#include "link/ethernet/getaddr.hpp"
+#include "link/ethernet/device.hpp"
+#include "link/ethernet/device_internal.hpp"
+#include "link/ethernet/ethernet.hpp"
+#include "link/ethernet/compose.hpp"
 #include "ip.hpp"
 #include "routing.hpp"
 
