@@ -17,10 +17,12 @@ inline bool operator == (socket_t a, socket_t b) {
 }
 
 struct ip_header_t {
-    uint ver: 4;
-    uint ihl: 4;
-    uint ds: 6;
-    uint ecn: 2;
+    // actually ver first, and then ihl. however, when bit fields are used, we have to reverse their order on little endian.
+    // https://stackoverflow.com/a/58127442/11815215
+    // so generally we discourage the use of bit fields..
+    
+    uint8_t ver_ihl;
+    uint8_t ds_ecn;
     uint16_t total_length;
     uint16_t id;
     uint16_t flags_fo;

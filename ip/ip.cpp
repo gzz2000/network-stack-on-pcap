@@ -168,10 +168,8 @@ int sendIPPacket(ip_t src, ip_t dest,
                  int proto, const void *buf, int len) {
     uint8_t packet[20 + len];
     ip_header_t *iphdr = (ip_header_t *)packet;
-    iphdr->ver = 4;
-    iphdr->ihl = 5;
-    iphdr->ds = 0;
-    iphdr->ecn = 0;
+    iphdr->ver_ihl = 0x45;
+    iphdr->ds_ecn = 0;
     iphdr->total_length = htons(20 + len);
     iphdr->flags_fo = 0;
     iphdr->ttl = 64;
