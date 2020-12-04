@@ -167,19 +167,18 @@ void startIPService(const std::vector<int> &interfaces) {
 int sendIPPacket(ip_t src, ip_t dest, 
                  int proto, const void *buf, int len) {
     uint8_t packet[20 + len];
-    uint16_t *packet16 = (uint16_t *)packet;
-    uint32_t *packet32 = (uint32_t *)packet;
-    packet[0] = 0x45;    // IPv4, header length=5
-    packet[1] = 0;       // TOS = original
-    packet16[1] = htons(20 + len);  // Total Length
-    packet16[2] = 0;     // Identification set to 0 as we don't need fragmentation
-    packet[6] = 1 << 6;  // Don't fragment Flag
-    packet[7] = 0;       // Fragment Offset set to zero
-    packet[8] = 64;      // TTL = 64 same as Linux
-    packet[9] = proto;   // Protocol
-    packet32[3] = src;   // Source IP
-    packet32[4] = dest;  // Destination IP
-    packet16[5] = computeIPHeaderChecksum(packet);   // Header Checksum
+    ip_header_t *iphdr = (ip_header_t *)packet;
+    iphdr->ver = 4;
+    iphdr->ihl = 5;
+    iphdr->ds = 0;
+    iphdr->ecn = 0;
+    iphdr->total_length = htons(20 + len);
+    iphdr->flags_fo = 0;
+    iphdr->ttl = 64;
+    iphdr->protocol = proto;
+    iphdr->src = src;
+    iphdr->dest = dest;
+    iphdr->checksum = computeIPHeaderChecksum(packet);
     memcpy(packet + 20, buf, len);
     return forwardIPPacket(packet, len + 20);
 }
