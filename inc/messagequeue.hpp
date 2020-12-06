@@ -77,4 +77,23 @@ public:
     // inline bool empty() const
 };
 
+class persist_condition {
+    mutable std::mutex mutex;
+    std::condition_variable cond;
+    bool have = false;
+
+public:
+    inline void wait() {
+        std::unique_lock<std::mutex> lock(mutex);
+        while(!have) cond.wait(lock);
+        have = false;
+    }
+
+    inline void set() {
+        std::lock_guard<std::mutex> lock(mutex);
+        have = true;
+        cond.notify_all();
+    }
+};
+
 #endif // MESSAGEQUEUE_HPP

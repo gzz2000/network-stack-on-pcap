@@ -33,3 +33,25 @@ struct ip_header_t {
     ip_t   dest;
 };
 
+struct tcp_header_t {
+    uint16_t src_port;
+    uint16_t dst_port;
+    uint32_t seq;
+    uint32_t ack;
+    uint8_t  data_offset;  // 4 bits, then comes 3 reserved and 1 NS flag bit
+    uint8_t  flags;
+    uint16_t window_size;  // i shall set it to a large one?
+    uint16_t checksum;
+    uint16_t urgent_p;
+};
+
+#ifndef TH_FIN
+#define	TH_FIN	0x01
+#define	TH_SYN	0x02
+#define	TH_RST	0x04
+#define	TH_PUSH	0x08
+#define	TH_ACK	0x10
+#define	TH_URG	0x20
+#define	TH_ECE	0x40
+#define	TH_CWR	0x80
+#endif

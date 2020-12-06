@@ -9,6 +9,8 @@
 std::unordered_map<std::string, int> device2id;
 std::vector<Device> active_devices;
 
+ip_t host_ip;
+
 int addDevice(const char *device) {
     char errbuf[PCAP_ERRBUF_SIZE];
     errbuf[0] = 0;
@@ -28,6 +30,7 @@ int addDevice(const char *device) {
     u_char *mac = active_devices[id].mac;
     getMACAddress(device, mac);
     active_devices[id].ip = getIPAddress(device);
+    host_ip = active_devices[id].ip; // anyone is ok.
 
     fprintf(stderr, "Opened adapter '%s' with MAC address %s, system configured IP address %s.\n",
             device, mac2str(mac).c_str(),
@@ -48,4 +51,8 @@ Device *getDeviceInfo(int id) {
         return NULL;
     }
     return &active_devices[id];
+}
+
+ip_t getHostIP() {
+    return host_ip;
 }
