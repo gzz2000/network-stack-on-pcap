@@ -52,6 +52,11 @@ void tcp_call_close(socket_t src, socket_t dest, Connection &conn) {
         sendTCPSegment(src, dest, TH_FIN, conn.seq, conn.ack, NULL, 0);
         conn.status = STATUS_LAST_ACK;
         break;
+
+    default:
+        fprintf(stderr, "Unexpected state when closing.\n");
+        conn.status = STATUS_TERMINATED;
+        conn.cond_socket.set();
     }
 }
 

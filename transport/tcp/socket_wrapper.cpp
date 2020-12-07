@@ -319,12 +319,10 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
     if(conn.status == STATUS_FIN_WAIT_1 || conn.status == STATUS_FIN_WAIT_2 ||
        conn.status == STATUS_TERMINATED) {
         errno = EPIPE;  // NOTIMPLEMENTED: no sigpipe sent.
-        return 0;     // client side already closed. \
-                      in fact, only TERMINATED is expected in current implementation.
+        return 0;     // client side already closed. in fact, only TERMINATED is expected in current implementation.
     }
 
-    // NOTIMPLEMENTED: no any form of window. all data are sent at once, \
-    congesting the network at the furthest possible.
+    // NOTIMPLEMENTED: no any form of window. all data are sent at once, congesting the network at the furthest possible.
 
     size_t i = 0;
     while(i < nbyte) {

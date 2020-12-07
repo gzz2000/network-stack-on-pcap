@@ -172,8 +172,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
-        // NOTIMPLEMENTED: TH_PSH. We always give data to socket API at once \
-        without buffering anymore.
+        // NOTIMPLEMENTED: TH_PSH. We always give data to socket API at once without buffering anymore.
         // NOTIMPLEMENTED: sending ACK with hitchhike data payload
         
         // apply acknowledgement
