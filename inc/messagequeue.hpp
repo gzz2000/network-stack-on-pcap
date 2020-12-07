@@ -22,11 +22,11 @@ typedef std::chrono::time_point<std::chrono::steady_clock> timer_index;
 template<typename T>
 class messagequeue {
     std::queue<T> q;
-    mutable std::mutex mutex;
     std::condition_variable cond;
     std::map<timer_index, T> timers;
 
 public:
+    mutable std::mutex mutex;    // publicize mutex to allow hack outside worker thread
     inline T pop() {
         std::unique_lock<std::mutex> lock(mutex);
         while(q.empty()) {
@@ -83,7 +83,7 @@ class persist_condition {
     bool have = false;
 
 public:
-    inline void wait() {
+    inline void get() {
         std::unique_lock<std::mutex> lock(mutex);
         while(!have) cond.wait(lock);
         have = false;

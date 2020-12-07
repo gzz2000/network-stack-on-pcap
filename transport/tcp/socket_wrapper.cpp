@@ -2,6 +2,7 @@
 #include "tcp_internal.hpp"
 #include "link/ethernet/ethernet.hpp"
 #include "ip/ip.hpp"
+#include <cstring>
 #include <mutex>
 #include <unordered_map>
 
@@ -41,6 +42,7 @@ static int system_to_socket_t(const struct sockaddr *address,
     }
     ret.ip = addr->sin_addr.s_addr;
     ret.port = addr->sin_port;
+    return 0;
 }
 
 static int socket_t_to_system(socket_t s,
@@ -106,7 +108,7 @@ int __wrap_listen(int socket, int backlog) {
 
     SocketInfo &si = it->second;
     if(-1 == finalize_socket_src(si)) return -1;
-    binds[si.src] = {};
+    binds[si.src];
     si.type = SOCKET_TYPE_BIND;
     return 0;
 }
@@ -130,16 +132,36 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
     socket_t src = it->second.src;
     Bind &bind = binds[src];
 
-    lock_sockets.unlock();
-    lock_pools.unlock();
+    socket_t client;
+    while(true) {
+        lock_sockets.unlock();
+        lock_pools.unlock();
 
-    socket_t client = bind.q_socket.pop();
-    if(-1 == socket_t_to_system(client, address, address_len)) {
-        bind.q_socket.push(client);  // re-push it back..
-        return -1;
+        client = bind.q_socket.pop();
+        
+        std::lock(lock_sockets, lock_pools);
+        Connection &conn = conns[std::make_pair(src, client)];
+        lock_sockets.unlock();
+        lock_pools.unlock();
+
+        while(conn.status == STATUS_CLOSED ||
+              conn.status == STATUS_SYN_SENT ||
+              conn.status == STATUS_LISTEN ||
+              conn.status == STATUS_SYN_RCVD) {
+            conn.cond_socket.get();
+        }
+        if(conn.status == STATUS_TERMINATED) {
+            // connection failed to establish
+            conn.q_thread.push(free_connection);
+            continue;
+        }
+        
+        if(-1 == socket_t_to_system(client, address, address_len)) {
+            bind.q_socket.push(client);  // bad addr length, re-push it back..
+            return -1;
+        }
+        break;
     }
-
-    std::lock(lock_sockets, lock_pools);
     
     // create a new socket descriptor along with the connection.
     int id = nxt_vsock_fd++;
@@ -168,7 +190,7 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
         if(conn.status == STATUS_ESTAB ||
            conn.status == STATUS_CLOSE_WAIT) break;
         else if(conn.status == STATUS_TERMINATED) {
-            conn.status = STATUS_TERMINATED_FREED;
+            conn.q_thread.push(free_connection);
             // note here we don't distinguish between ETIMEOUT and ECONNREFUSED
             errno = ECONNREFUSED;
             return -1;
@@ -198,19 +220,20 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
         errno = EINVAL;
         return -1;
     }
-    // socket_t src = it->second.src, dest = it->second.dest;
+    socket_t src = it->second.src, dest = it->second.dest;
     Connection &conn = conns[std::make_pair(src, dest)];
 
     lock_sockets.unlock();
     lock_pools.unlock();
 
     while(true) {
+        std::unique_lock<std::mutex> lock_t(conn.q_thread.mutex);
         if(!conn.q_recv.empty()) {
             size_t i = 0;
             do {
                 BufferSlice &bs = conn.q_recv.front();
                 size_t read_len = std::min(bs.len - (conn.usrack - bs.seq), nbyte - i);
-                memcpy(buf + i, mem.get() + conn.usrack - bs.seq, read_len);
+                memcpy((uint8_t *)buf + i, bs.mem.get() + conn.usrack - bs.seq, read_len);
                 conn.usrack += read_len;
                 i += read_len;
                 if(conn.usrack >= bs.seq + bs.len) conn.q_recv.pop();
@@ -222,6 +245,7 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
                 conn.status == STATUS_TERMINATED) {
             return 0;   // EOF
         }
+        lock_t.unlock();
         conn.cond_socket.get();   // block to watch data arrival or state change
     }
 }
@@ -260,7 +284,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
 
     if(conn.status == STATUS_FIN_WAIT_1 || conn.status == STATUS_FIN_WAIT_2 ||
        conn.status == STATUS_TERMINATED) {
-        erno = EPIPE;  // NOTIMPLEMENTED: no sigpipe sent.
+        errno = EPIPE;  // NOTIMPLEMENTED: no sigpipe sent.
         return 0;     // client side already closed. \
                       in fact, only TERMINATED is expected in current implementation.
     }
@@ -269,11 +293,14 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
     congesting the network at the furthest possible.
 
     size_t i = 0;
-    while(nbyte) {
-        size_t len = std::min(nbyte - i, (size_t)TCP_MTU);
-        conn.q_sent.emplace({new uint8_t[len], conn.seq, len, {}});
+    while(i < nbyte) {
+        std::unique_lock<std::mutex> lock_t(conn.q_thread.mutex);
+        size_t len = std::min(nbyte - i, (size_t)TCP_DATA_MTU);
+        conn.q_sent.push(BufferSlice{std::shared_ptr<uint8_t[]>(new uint8_t[len]),
+                    conn.seq, len, {}});
         BufferSlice &bs = conn.q_sent.back();
-        memcpy(bs.mem.get(), buf + i, len);
+        lock_t.unlock();
+        memcpy(bs.mem.get(), (const uint8_t *)buf + i, len);
         do_transmit(bs, src, dest, conn);
         i += len;
     }
@@ -285,7 +312,7 @@ int __wrap_close(int socket) {
     std::unique_lock<std::mutex> lock_pools(pools_mutex, std::defer_lock);
     std::lock(lock_sockets, lock_pools);
     
-    auto it = sockets.find(fd);
+    auto it = sockets.find(socket);
     if(it == sockets.end()) {
         fprintf(stderr, "socket fd invalid\n");
         errno = EBADF;
@@ -310,27 +337,12 @@ int __wrap_close(int socket) {
 
     lock_sockets.unlock();
     lock_pools.unlock();
+    conn.q_thread.push(tcp_call_close);
 
     while(conn.status != STATUS_TERMINATED) {
-        switch(conn.status) {
-        case STATUS_SYN_SENT:
-            conn.status = STATUS_TERMINATED;
-            break;
-        
-        case STATUS_SYN_RCVD:
-        case STATUS_ESTAB:
-            sendTCPSegment(src, dest, TH_FIN, conn.seq, conn.ack, NULL, 0);
-            conn.status = STATUS_FIN_WAIT_1;
-            break;
-
-        case STATUS_CLOSE_WAIT:
-            sendTCPSegment(src, dest, TH_FIN, conn.seq, conn.ack, NULL, 0);
-            conn.status = STATUS_LAST_ACK;
-            break;
-        }
         conn.cond_socket.get();    // block until another change.
     }
-    conn.status = STATUS_TERMINATED_FREED;
+    conn.q_thread.push(free_connection);
 
     lock_sockets.lock();
     sockets.erase(it);

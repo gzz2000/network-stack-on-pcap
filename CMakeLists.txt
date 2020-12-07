@@ -22,4 +22,7 @@ target_link_libraries(link PUBLIC ${PCAP_LIBRARY} Threads::Threads)
 add_library(ip ip/routing.cpp ip/ip.cpp)
 target_link_libraries(ip PUBLIC ${PCAP_LIBRARY} Threads::Threads link)
 
+add_library(tcp transport/tcp/net_interface.cpp transport/tcp/recv_segment.cpp transport/tcp/socket_wrapper.cpp transport/tcp/worker_conn.cpp)
+target_link_libraries(tcp PUBLIC ${PCAP_LIBRARY} Threads::Threads link ip)
+
 add_subdirectory(app)

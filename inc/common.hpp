@@ -55,3 +55,8 @@ struct tcp_header_t {
 #define	TH_ECE	0x40
 #define	TH_CWR	0x80
 #endif
+
+#define ETHER_TYPE_ROUTING 0x2333
+#define ETHER_TYPE_IP 0x0800
+
+#define IP_PROTO_TCP 6

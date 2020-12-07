@@ -1,12 +1,26 @@
 #include "tcp_internal.hpp"
+#include <cstring>
+
+std::function<tcpMessageCallback> recv_segment_lambda(const void *buf, int len) {
+    std::shared_ptr<uint8_t[]> copy_buf(new uint8_t[len]);
+    memcpy(copy_buf.get(), buf, len);
+    return [copy_buf] (socket_t src, socket_t dest, Connection &conn) {
+        const ip_header_t *iphdr = (const ip_header_t *)copy_buf.get();
+        const tcp_header_t *tcphdr = (const tcp_header_t *)(
+            (const char *)copy_buf.get()
+            + 4 * (iphdr->ver_ihl & 0xF));
+        tcp_conn_recv_segment(src, dest, conn, iphdr, tcphdr,
+                              iphdr->total_length - 4 * (iphdr->ver_ihl & 0xF) - 4 * tcphdr->data_offset);
+    };
+}
 
 void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
-                           void *iphdr /* ip packet */, void *tcpbuf,
+                           const void *iphdr /* ip packet */, const void *tcpbuf,
                            int payload_len /* payload len */) {
     conn.q_thread.clearTimeout(conn.timer_keepalive);
     conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     
-    tcp_header_t *tcphdr = (tcp_header_t *)tcpbuf;
+    const tcp_header_t *tcphdr = (const tcp_header_t *)tcpbuf;
     if(tcphdr->checksum != computeTCPChecksum(iphdr, tcphdr, payload_len)) {
         fprintf(stderr, "drop segment: bad tcp checksum. %s\n",
                 debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
@@ -59,8 +73,8 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
             conn.status = STATUS_SYN_RCVD;
             break;
         }
-        else if(tcp_hdr->flags == (TH_SYN | TH_ACK)) {
-            if(tcp_hdr->ack != conn.seq) {
+        else if(tcphdr->flags == (TH_SYN | TH_ACK)) {
+            if(tcphdr->ack != conn.seq) {
                 fprintf(stderr, "drop segment: synack incorrect ack. %s\n",
                         debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
                 break;
@@ -167,7 +181,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
               (int64_t)((uint64_t)tcphdr->ack -
                         (uint64_t)(conn.q_sent.front().seq + conn.q_sent.front().len))
               >= 0) {
-            conn.q_thread.clearTimeout(conn.q_sent.front().timer_transmission);
+            conn.q_thread.clearTimeout(conn.q_sent.front().timer_retransmission);
             conn.q_sent.pop();
         }
         
@@ -177,8 +191,8 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
             if(payload_len) {
                 conn.ack += payload_len;
                 uint8_t *cpy_buf = new uint8_t[payload_len];
-                memcpy(cpy_buf, tcpbuf + sizeof(tcp_header_t), payload_len);
-                conn.q_recv.push({cpy_buf, tcphdr->seq, payload_len, {}});
+                memcpy(cpy_buf, (const uint8_t *)tcpbuf + 4 * tcphdr->data_offset, payload_len);
+                conn.q_recv.push(BufferSlice{std::shared_ptr<uint8_t[]>(cpy_buf), tcphdr->seq, (std::size_t)payload_len, {}});
                 conn.cond_socket.set();   // announce data arrival
             }
             sendTCPSegment(src, dest, TH_ACK,
@@ -198,7 +212,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                 debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
     }
     
-    if(tcphdr->flag & TH_RST) {
+    if(tcphdr->flags & TH_RST) {
         /*
          * If RST is received, unconditionally terminate the connection.
          */

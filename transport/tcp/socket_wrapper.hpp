@@ -1,3 +1,5 @@
+#pragma once
+
 /** 
  * @file socket_wrapper.hpp
  * @brief POSIX-compatible socket library supporting TCP protocol on IPv4.

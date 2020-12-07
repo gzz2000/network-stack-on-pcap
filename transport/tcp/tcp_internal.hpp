@@ -1,3 +1,5 @@
+#pragma once
+
 #include "inc/common.hpp"
 #include "inc/messagequeue.hpp"
 #include "config.hpp"
@@ -7,6 +9,7 @@
 #include <string>
 #include <queue>
 #include <memory>
+#include <functional>
 
 enum tcp_status {
     STATUS_CLOSED = 0,
@@ -43,9 +46,18 @@ namespace std {
             return std::size_t(k.ip) * 65537 + k.port;
         }
     };
+    
+    template<>
+    struct hash<pair<socket_t, socket_t>> {
+        std::size_t operator() (const pair<socket_t, socket_t> &k2) const {
+            std::size_t h1 = std::size_t(k2.first.ip) * 65537 + k2.first.port;
+            std::size_t h2 = std::size_t(k2.second.ip) * 65537 + k2.second.port;
+            return (h1 + 1) * (~(h2 + 5));
+        }
+    };
 }
 
-typedef int (*tcpMessageCallback)(socket_t, socket_t, Connection &);
+// struct Connection;
 
 struct BufferSlice {
     std::shared_ptr<uint8_t[]> mem;
@@ -54,12 +66,16 @@ struct BufferSlice {
     timer_index timer_retransmission; // only valid for send buffer
 };
 
+struct Connection;
+
+typedef void tcpMessageCallback(socket_t, socket_t, Connection &);
+
 struct Connection {
     messagequeue<std::function<tcpMessageCallback>> q_thread; // jobs for worker thread
     persist_condition cond_socket;    // to fire a message to socket
     tcp_status status;
     timer_index timer_keepalive;
-    uint32_t seq, ack;
+    uint32_t seq, ack, usrack;
     std::queue<BufferSlice> q_recv, q_sent;
 
     // seq: next byte to send
@@ -67,8 +83,6 @@ struct Connection {
     // usrack: next byte to read from API
     // q_recv: data received but not yet read by user thread
     // q_sent: data sent but not yet acked by remote
-
-    // TODO: initialize seq to random value upon init of Connection.
 };
 
 struct Bind {
@@ -79,8 +93,7 @@ struct Bind {
 
 std::mutex pools_mutex;
 
-// TODO: implement entry to connect to IP interface.
-// it will search for both binds and conns.
+// TODO: entry on IP interface will search for both binds and conns.
 std::unordered_map<std::pair<socket_t, socket_t>, Connection> conns;
 std::unordered_map<socket_t, Bind> binds;
 
@@ -88,32 +101,36 @@ std::unordered_map<socket_t, Bind> binds;
 
 /*
  * initialize a connection
- * seq set to random, ack set to 0, start keepalive timer
+ * seq set to random, ack set to 0, launch worker thread, and start keepalive timer
  */
 Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state);
 
+void free_connection(socket_t src, socket_t dest, Connection &conn);
+
 void kill_connection(socket_t src, socket_t dest, Connection &conn);
 
-void tcp_worker_conn(socket_t src, socket_t dest);
+void tcp_call_close(socket_t src, socket_t dest, Connection &conn);
 
-// below in process_segment.cpp
+void tcp_worker_conn(socket_t src, socket_t dest, Connection &conn);
+
+// below in recv_segment.cpp
 // responsible for processing remote messages
 
+std::function<tcpMessageCallback> recv_segment_lambda(const void *buf, int len);
+
 void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
-                           void *iphdr /* ip packet */, void *tcpbuf,
+                           const void *iphdr /* ip packet */, const void *tcpbuf,
                            int payload_len /* payload len */);
 
 // local messages are processed within socket_wrapper.cpp,
 // with definitions in socket_wrapper.hpp.
 
-// below in utils.cpp
-
-std::string debugSegmentSummary(void *iphdr, void *tcpbuf, int len /* payload len */);
-
-uint16_t computeTCPChecksum(void *iphdr, void *tcpbuf, int len /* payload len */);
-
 // below in net_interface.cpp
 // responsible for connecting our tcp implementation to the network layer
+
+std::string debugSegmentSummary(const void *iphdr, const void *tcpbuf, int len /* payload len */);
+
+uint16_t computeTCPChecksum(const void *iphdr, const void *tcpbuf, int len /* payload len */);
 
 /*
  * If buf set to NULL, no payload is transmitted. Else, len of payload is transmitted.
@@ -123,3 +140,6 @@ uint16_t computeTCPChecksum(void *iphdr, void *tcpbuf, int len /* payload len */
  */
 void sendTCPSegment(socket_t src, socket_t dest, uint8_t flags,
                     uint32_t seq, uint32_t ack, void *buf, uint32_t len);
+
+// interface to give to network layer
+int ipCallbackTCP(const void *buf, int len);
