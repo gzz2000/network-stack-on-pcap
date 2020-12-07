@@ -54,7 +54,7 @@ void tcp_call_close(socket_t src, socket_t dest, Connection &conn) {
         break;
 
     default:
-        fprintf(stderr, "Unexpected state when closing.\n");
+        fprintf(stderr, "[TCP Error] Unexpected state when closing.\n");
         conn.status = STATUS_TERMINATED;
         conn.cond_socket.set();
     }

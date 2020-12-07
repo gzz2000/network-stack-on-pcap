@@ -50,7 +50,7 @@ static int system_to_socket_t(const struct sockaddr *address,
                               socket_t &ret) {
     struct sockaddr_in *addr = (struct sockaddr_in *)address;
     if(addr->sin_family != AF_INET) {
-        fprintf(stderr, "bind() only support IPv4\n");
+        fprintf(stderr, "[TCP Error] bind() only support IPv4\n");
         errno = EINVAL;
         return -1;
     }
@@ -79,7 +79,7 @@ int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_le
     std::scoped_lock lock(sockets_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (bind)\n");
         errno = EBADF;
         return -1;
     }
@@ -115,7 +115,7 @@ int __wrap_listen(int socket, int backlog) {
     std::scoped_lock lock(sockets_mutex, pools_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (listen)\n");
         errno = EBADF;
         return -1;
     }
@@ -134,12 +134,12 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
     
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (accept)\n");
         errno = EBADF;
         return -1;
     }
     if(it->second.type != SOCKET_TYPE_BIND) {
-        fprintf(stderr, "socket not listening\n");
+        fprintf(stderr, "[TCP Error] socket not listening\n");
         errno = EINVAL;
         return -1;
     }
@@ -187,7 +187,7 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
     std::unique_lock<std::mutex> lock(sockets_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (connect)\n");
         errno = EBADF;
         return -1;
     }
@@ -235,12 +235,12 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
     
     auto it = sockets.find(fd);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (read)\n");
         errno = EBADF;
         return -1;
     }
     if(it->second.type != SOCKET_TYPE_CONN){
-        fprintf(stderr, "socket is not an established connection\n");
+        fprintf(stderr, "[TCP Error] socket is not an established connection\n");
         errno = EINVAL;
         return -1;
     }
@@ -301,12 +301,12 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
     
     auto it = sockets.find(fd);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (write)\n");
         errno = EBADF;
         return -1;
     }
     if(it->second.type != SOCKET_TYPE_CONN){
-        fprintf(stderr, "socket is not an established connection\n");
+        fprintf(stderr, "[TCP Error] socket is not an established connection\n");
         errno = EINVAL;
         return -1;
     }
@@ -346,7 +346,7 @@ int __wrap_close(int socket) {
     
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
-        fprintf(stderr, "socket fd invalid\n");
+        fprintf(stderr, "[TCP Error] socket fd invalid (close)\n");
         errno = EBADF;
         return -1;
     }
@@ -397,7 +397,7 @@ int __wrap_getaddrinfo(const char *node, const char *service,
     if(service) addr->sin_port = atoi(service); else addr->sin_port = 0;
     if(node) {
         if(inet_aton(node, &addr->sin_addr) == 0) {
-            fprintf(stderr, "IP parse failed: %s\n", node);
+            fprintf(stderr, "[TCP Error] IP parse failed: %s\n", node);
             return EAI_NONAME;
         }
     }

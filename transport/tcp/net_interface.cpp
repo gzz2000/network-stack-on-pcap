@@ -72,14 +72,14 @@ void sendTCPSegment(socket_t src, socket_t dest, uint8_t flags,
     tcphdr->checksum = computeTCPChecksum(&pseudo_iphdr, tcpbuf, len);
     int ret = sendIPPacket(src.ip, dest.ip, IP_PROTO_TCP, tcpbuf, 20 + len);
     if(ret < 0) {
-        fprintf(stderr, "sendTCPSegment called sendIPPacket, which failed\n");
+        fprintf(stderr, "[TCP Error] sendTCPSegment called sendIPPacket, which failed\n");
     }
 }
 
 int ipCallbackTCP(const void *buf, int len) {
     const ip_header_t *iphdr = (const ip_header_t *)buf;
     if(iphdr->protocol != IP_PROTO_TCP) {
-        fprintf(stderr, "Not TCP packet: IP proto %d\n", iphdr->protocol);
+        fprintf(stderr, "[TCP Error] Not TCP packet: IP proto %d\n", iphdr->protocol);
         return 0;
     }
     const tcp_header_t *tcphdr = (const tcp_header_t *)(
@@ -104,7 +104,7 @@ int ipCallbackTCP(const void *buf, int len) {
         it_c->second.q_thread.push(recv_segment_lambda(buf, len));
     }
     else {
-        fprintf(stderr, "TCP segment not corresponding to any socket: %s\n",
+        fprintf(stderr, "[TCP Error] TCP segment not corresponding to any socket: %s\n",
                 debugSegmentSummary(iphdr, tcphdr,
                                     iphdr->total_length - 4 * (iphdr->ver_ihl & 0xF) - 4 * tcphdr->data_offset).c_str());
     }

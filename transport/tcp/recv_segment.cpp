@@ -22,7 +22,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
     
     const tcp_header_t *tcphdr = (const tcp_header_t *)tcpbuf;
     if(tcphdr->checksum != computeTCPChecksum(iphdr, tcphdr, payload_len)) {
-        fprintf(stderr, "drop segment: bad tcp checksum. %s\n",
+        fprintf(stderr, "[TCP Error] drop segment: bad tcp checksum. %s\n",
                 debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
         return;
     }
@@ -35,7 +35,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         /*
          * For not open or already closed states, we drop all segments received.
          */
-        fprintf(stderr, "drop segment: connection invalidated. %s\n",
+        fprintf(stderr, "[TCP Error] drop segment: connection invalidated. %s\n",
                 debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
         break;
         
@@ -51,7 +51,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          * we just send seq-1 to remote.
          */
         if(tcphdr->flags != TH_SYN) {
-            fprintf(stderr, "drop segment: listening only to SYN. %s\n",
+            fprintf(stderr, "[TCP Error] drop segment: listening only to SYN. %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
@@ -75,7 +75,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         }
         else if(tcphdr->flags == (TH_SYN | TH_ACK)) {
             if(tcphdr->ack != conn.seq) {
-                fprintf(stderr, "drop segment: synack incorrect ack. %s\n",
+                fprintf(stderr, "[TCP Error] drop segment: synack incorrect ack. %s\n",
                         debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
                 break;
             }
@@ -86,7 +86,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
             break;
         }
         else {
-            fprintf(stderr, "drop segment: SYN_SENT accepting only SYN or SYN/ACK. %s\n",
+            fprintf(stderr, "[TCP Error] drop segment: SYN_SENT accepting only SYN or SYN/ACK. %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
@@ -99,12 +99,12 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          */
         if(tcphdr->flags == TH_SYN) goto listen_syn;
         if((tcphdr->flags & TH_ACK) == 0 || tcphdr->ack != conn.seq) {
-            fprintf(stderr, "drop segment: no valid ACK. %s\n",
+            fprintf(stderr, "[TCP Error] drop segment: no valid ACK. %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
         if(tcphdr->seq != conn.ack) {
-            fprintf(stderr, "drop segment: wrong ACK, not establishing conn. %s\n",
+            fprintf(stderr, "[TCP Error] drop segment: wrong ACK, not establishing conn. %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
@@ -168,7 +168,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         
     process_normal_segment:
         if(tcphdr->flags & TH_SYN) {
-            fprintf(stderr, "drop segment: not accepting syn as normal. %s\n",
+            fprintf(stderr, "[TCP Error] drop segment: not accepting syn as normal. %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
             break;
         }
@@ -200,13 +200,13 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         }
         else {
             // NOTIMPLEMENTED: selective ack, and buffering out-of-order segments
-            fprintf(stderr, "out-of-order segment %s\n",
+            fprintf(stderr, "[TCP Error] out-of-order segment %s\n",
                     debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
         }
         break;
 
     default:
-        fprintf(stderr, "ERROR: UNKNOWN STATE (%d) WHEN RECEIVING PACKET. %s\n",
+        fprintf(stderr, "[TCP Error] ERROR: UNKNOWN STATE (%d) WHEN RECEIVING PACKET. %s\n",
                 conn.status,
                 debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
     }
