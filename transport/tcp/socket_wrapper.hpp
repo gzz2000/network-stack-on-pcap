@@ -22,6 +22,8 @@
 #define __wrap_freeaddrinfo freeaddrinfo
 #endif
 
+extern "C" {
+
 /**
  * @see [POSIX.1-2017:socket](http://pubs.opengroup.org/onlinepubs/
  * 9699919799/functions/socket.html)
@@ -82,3 +84,5 @@ int __wrap_getaddrinfo(const char *node, const char *service,
                        struct addrinfo **res);
 
 void __wrap_freeaddrinfo(struct addrinfo *res);
+
+}  // extern "C"

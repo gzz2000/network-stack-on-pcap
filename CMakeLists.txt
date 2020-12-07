@@ -34,14 +34,16 @@ add_library(tcp
   transport/tcp/net_interface.cpp
   transport/tcp/recv_segment.cpp
   transport/tcp/socket_wrapper.cpp
-  transport/tcp/worker_conn.cpp)
+  transport/tcp/worker_conn.cpp
+  transport/tcp/service.cpp)
 target_link_libraries(tcp PUBLIC ${PCAP_LIBRARY} Threads::Threads link ip)
 
 add_library(tcp_runtime SHARED
   transport/tcp/net_interface.cpp
   transport/tcp/recv_segment.cpp
   transport/tcp/socket_wrapper.cpp
-  transport/tcp/worker_conn.cpp)
+  transport/tcp/worker_conn.cpp
+  transport/tcp/service.cpp)
 target_link_libraries(tcp_runtime PUBLIC ${PCAP_LIBRARY} Threads::Threads link ip)
 target_compile_definitions(tcp_runtime PUBLIC RUNTIME_INTERPOSITION)
 

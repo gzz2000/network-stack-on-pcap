@@ -1,5 +1,6 @@
 #include "socket_wrapper.hpp"
 #include "tcp_internal.hpp"
+#include "service.hpp"
 #include "link/ethernet/ethernet.hpp"
 #include "ip/ip.hpp"
 #include <cstdlib>
@@ -33,6 +34,7 @@ std::mutex sockets_mutex;
 std::unordered_map<int, SocketInfo> sockets;
 
 int __wrap_socket(int domain, int type, int protocol) {
+    startTCPService();
     if(domain != AF_INET || type != SOCK_STREAM || (protocol && protocol != IPPROTO_TCP)) {
         errno = EINVAL;
         return -1;
@@ -421,3 +423,4 @@ void __wrap_freeaddrinfo(struct addrinfo *res) {
     delete res->ai_addr;
     delete res;
 }
+

@@ -139,7 +139,7 @@ uint16_t computeTCPChecksum(const void *iphdr, const void *tcpbuf, int len /* pa
  * NOTIMPLEMENTED: flow control and congestion control
  */
 void sendTCPSegment(socket_t src, socket_t dest, uint8_t flags,
-                    uint32_t seq, uint32_t ack, void *buf, uint32_t len);
+                    uint32_t seq, uint32_t ack, const void *buf, uint32_t len);
 
 // interface to give to network layer
 int ipCallbackTCP(const void *buf, int len);
