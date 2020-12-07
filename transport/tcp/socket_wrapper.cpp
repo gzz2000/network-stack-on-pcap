@@ -225,7 +225,7 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
         __real_read = (typeof(__real_read))dlsym((void *)RTLD_NEXT, "read");
         return __real_read(fd, buf, nbyte);
 #else
-        return read(fd, buf, nbyte);
+        return __real_read(fd, buf, nbyte);
 #endif
     }
     
@@ -291,7 +291,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
         __real_write = (typeof(__real_write))dlsym((void *)RTLD_NEXT, "write");
         return __real_write(fd, buf, nbyte);
 #else
-        return write(fd, buf, nbyte);
+        return __real_write(fd, buf, nbyte);
 #endif
     }
     
@@ -340,6 +340,16 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
 }
 
 int __wrap_close(int socket) {
+    if(socket < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        int (*__real_close)(int);
+        __real_close = (typeof(__real_close))dlsym((void *)RTLD_NEXT, "close");
+        return __real_close(socket);
+#else
+        return __real_close(socket);
+#endif
+    }
+    
     std::unique_lock<std::mutex> lock_sockets(sockets_mutex, std::defer_lock);
     std::unique_lock<std::mutex> lock_pools(pools_mutex, std::defer_lock);
     std::lock(lock_sockets, lock_pools);

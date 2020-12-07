@@ -20,6 +20,14 @@
 #define __wrap_close close
 #define __wrap_getaddrinfo getaddrinfo
 #define __wrap_freeaddrinfo freeaddrinfo
+#else
+extern "C" {
+
+ssize_t __real_read(int, void *, size_t);
+ssize_t __real_write(int, const void *, size_t);
+int __real_close(int);
+
+}
 #endif
 
 extern "C" {
