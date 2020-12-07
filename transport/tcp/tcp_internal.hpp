@@ -88,14 +88,14 @@ struct Connection {
 struct Bind {
     messagequeue<socket_t> q_socket;
     // to announce the connection of a client, put the client's socket into q_socket.
-    // at the same time, the connection is put into conns[]. (TODO: implement this)
+    // at the same time, the connection is put into conns[].
 };
 
-std::mutex pools_mutex;
+// the actual definitions are put in worker_conn.cpp
+extern std::mutex pools_mutex;
 
-// TODO: entry on IP interface will search for both binds and conns.
-std::unordered_map<std::pair<socket_t, socket_t>, Connection> conns;
-std::unordered_map<socket_t, Bind> binds;
+extern std::unordered_map<std::pair<socket_t, socket_t>, Connection> conns;
+extern std::unordered_map<socket_t, Bind> binds;
 
 // below in worker_conn.cpp
 

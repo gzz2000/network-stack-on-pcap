@@ -2,6 +2,11 @@
 #include <cstdlib>
 #include <thread>
 
+std::mutex pools_mutex;
+
+std::unordered_map<std::pair<socket_t, socket_t>, Connection> conns;
+std::unordered_map<socket_t, Bind> binds;
+
 Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state) {
     Connection &conn = conns[std::make_pair(src, dest)];
     conn.status = init_state;

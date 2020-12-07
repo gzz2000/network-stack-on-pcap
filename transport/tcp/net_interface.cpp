@@ -93,6 +93,12 @@ int ipCallbackTCP(const void *buf, int len) {
         conn.q_thread.push(recv_segment_lambda(buf, len));
         it_b->second.q_socket.push(src_socket);
     }
+    else if(auto it_b = binds.find(socket_t{0u, dst_socket.port}); it_b != binds.end()) {
+        // wildcard bind
+        Connection &conn = init_connection(dst_socket, src_socket, STATUS_LISTEN);
+        conn.q_thread.push(recv_segment_lambda(buf, len));
+        it_b->second.q_socket.push(src_socket);
+    }
     else if(auto it_c = conns.find(std::make_pair(dst_socket, src_socket));
             it_c != conns.end()) {
         it_c->second.q_thread.push(recv_segment_lambda(buf, len));

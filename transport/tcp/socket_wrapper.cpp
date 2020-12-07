@@ -2,9 +2,17 @@
 #include "tcp_internal.hpp"
 #include "link/ethernet/ethernet.hpp"
 #include "ip/ip.hpp"
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <unordered_map>
+#include <arpa/inet.h>
+
+#ifdef RUNTIME_INTERPOSITION
+#include <dlfcn.h>
+#else
+#include <unistd.h>
+#endif
 
 #define VIRTUAL_SOCKET_FD_ST 100000
 
@@ -25,6 +33,10 @@ std::mutex sockets_mutex;
 std::unordered_map<int, SocketInfo> sockets;
 
 int __wrap_socket(int domain, int type, int protocol) {
+    if(domain != AF_INET || type != SOCK_STREAM || (protocol && protocol != IPPROTO_TCP)) {
+        errno = EINVAL;
+        return -1;
+    }
     std::scoped_lock lock(sockets_mutex);
     int id = nxt_vsock_fd++;
     sockets[id] = {SOCKET_TYPE_IDLE, {0, 0}, {0, 0}};
@@ -75,7 +87,7 @@ int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_le
 }
 
 static int finalize_socket_src(SocketInfo &si) {
-    if(!si.src.ip) si.src.ip = getHostIP();
+    // if(!si.src.ip) si.src.ip = getHostIP();   // wildcard implemented in net_interface.cpp
     if(!si.src.port) {
         // choose an ephemeral address from 32769 to 60999
         si.src.port = 32769u;
@@ -205,6 +217,16 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
 }
 
 ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
+    if(fd < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_read)(int, void *, size_t);
+        __real_read = (typeof(__real_read))dlsym((void *)RTLD_NEXT, "read");
+        return __real_read(fd, buf, nbyte);
+#else
+        return read(fd, buf, nbyte);
+#endif
+    }
+    
     std::unique_lock<std::mutex> lock_sockets(sockets_mutex, std::defer_lock);
     std::unique_lock<std::mutex> lock_pools(pools_mutex, std::defer_lock);
     std::lock(lock_sockets, lock_pools);
@@ -261,6 +283,16 @@ static void do_transmit(BufferSlice &bs,
 }
 
 ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
+    if(fd < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_write)(int, const void *, size_t);
+        __real_write = (typeof(__real_write))dlsym((void *)RTLD_NEXT, "write");
+        return __real_write(fd, buf, nbyte);
+#else
+        return write(fd, buf, nbyte);
+#endif
+    }
+    
     std::unique_lock<std::mutex> lock_sockets(sockets_mutex, std::defer_lock);
     std::unique_lock<std::mutex> lock_pools(pools_mutex, std::defer_lock);
     std::lock(lock_sockets, lock_pools);
@@ -349,3 +381,43 @@ int __wrap_close(int socket) {
     return 0;
 }
 
+int __wrap_getaddrinfo(const char *node, const char *service,
+                       const struct addrinfo *hints,
+                       struct addrinfo **res) {
+    if(hints &&
+       ((hints->ai_family != AF_INET && hints->ai_family != AF_UNSPEC) ||
+        (hints->ai_socktype && hints->ai_socktype != SOCK_STREAM) ||
+        (hints->ai_protocol && hints->ai_protocol != IPPROTO_TCP))) {
+        // we don't support this kind of request
+        return EAI_SERVICE;
+    }
+    
+    struct sockaddr_in *addr = new struct sockaddr_in;
+    addr->sin_family = AF_INET;
+    if(service) addr->sin_port = atoi(service); else addr->sin_port = 0;
+    if(node) {
+        if(inet_aton(node, &addr->sin_addr) == 0) {
+            fprintf(stderr, "IP parse failed: %s\n", node);
+            return EAI_NONAME;
+        }
+    }
+    else addr->sin_addr.s_addr = 0;
+    
+    struct addrinfo *ret = new struct addrinfo;
+    ret->ai_flags = (addr->sin_addr.s_addr == 0 ? AI_PASSIVE : 0);
+    ret->ai_family = AF_INET;
+    ret->ai_socktype = SOCK_STREAM;
+    ret->ai_protocol = IPPROTO_TCP;
+    ret->ai_addrlen = sizeof(struct sockaddr_in);
+    ret->ai_addr = (struct sockaddr *)addr;
+    ret->ai_canonname = NULL;
+    ret->ai_next = NULL;
+
+    *res = ret;
+    return 0;
+}
+
+void __wrap_freeaddrinfo(struct addrinfo *res) {
+    delete res->ai_addr;
+    delete res;
+}

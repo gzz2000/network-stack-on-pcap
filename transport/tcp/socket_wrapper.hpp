@@ -9,6 +9,19 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#ifdef RUNTIME_INTERPOSITION
+#define __wrap_socket socket
+#define __wrap_bind bind
+#define __wrap_listen listen
+#define __wrap_connect connect
+#define __wrap_accept accept
+#define __wrap_read read
+#define __wrap_write write
+#define __wrap_close close
+#define __wrap_getaddrinfo getaddrinfo
+#define __wrap_freeaddrinfo freeaddrinfo
+#endif
+
 /**
  * @see [POSIX.1-2017:socket](http://pubs.opengroup.org/onlinepubs/
  * 9699919799/functions/socket.html)
@@ -67,3 +80,5 @@ int __wrap_close(int fd);
 int __wrap_getaddrinfo(const char *node, const char *service,
                        const struct addrinfo *hints,
                        struct addrinfo **res);
+
+void __wrap_freeaddrinfo(struct addrinfo *res);

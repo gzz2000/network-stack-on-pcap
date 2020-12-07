@@ -52,9 +52,3 @@ int setFrameReceiveCallback(frameReceiveCallback callback);
  *
  */
 int startCapturing(int id);
-
-/**
- * @brief return any IP address of this host
- * useful for wildcard binding in later socket implementation.
- */
-ip_t getHostIP();
