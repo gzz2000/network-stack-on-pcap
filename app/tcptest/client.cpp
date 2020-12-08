@@ -48,10 +48,6 @@ int main(int argc, char **argv)
         printf("Socket successfully created..\n"); 
     bzero(&servaddr, sizeof(servaddr));
 
-    // Need to sleep to wait for routing table setup
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(3s);
-
     const char *addr = (argc == 2 ? argv[1] : "127.0.0.1");
     printf("Server address assumed: %s:%d\n", addr, PORT);
   

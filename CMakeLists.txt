@@ -44,7 +44,7 @@ add_library(tcp_runtime SHARED
   transport/tcp/socket_wrapper.cpp
   transport/tcp/worker_conn.cpp
   transport/tcp/service.cpp)
-target_link_libraries(tcp_runtime PUBLIC ${PCAP_LIBRARY} Threads::Threads link ip)
+target_link_libraries(tcp_runtime PUBLIC ${PCAP_LIBRARY} Threads::Threads link ip libdl.so)
 target_compile_definitions(tcp_runtime PUBLIC RUNTIME_INTERPOSITION)
 
 add_subdirectory(app)

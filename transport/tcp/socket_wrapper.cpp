@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-#define VIRTUAL_SOCKET_FD_ST 100000
+#define VIRTUAL_SOCKET_FD_ST 500
 
 int nxt_vsock_fd = VIRTUAL_SOCKET_FD_ST;
 
@@ -35,7 +35,8 @@ std::unordered_map<int, SocketInfo> sockets;
 
 int __wrap_socket(int domain, int type, int protocol) {
     startTCPService();
-    if(domain != AF_INET || type != SOCK_STREAM || (protocol && protocol != IPPROTO_TCP)) {
+    
+    if(domain != AF_INET || type != SOCK_STREAM || (protocol && protocol != IPPROTO_TCP && protocol != IPPROTO_TCP)) {
 #ifdef RUNTIME_INTERPOSITION
         int (*__real_socket)(int, int, int);
         __real_socket = (typeof(__real_socket))dlsym((void *)RTLD_NEXT, "socket");
@@ -82,7 +83,19 @@ static int socket_t_to_system(socket_t s,
 }
 
 int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_len) {
+    fprintf(stderr, "__wrap_bind called\n");
     // https://man7.org/linux/man-pages/man7/ip.7.html
+
+    if(socket < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_bind)(int, const struct sockaddr *, socklen_t);
+        __real_bind = (typeof(__real_bind))dlsym((void *)RTLD_NEXT, "bind");
+        return __real_bind(socket, address, address_len);
+#else
+        return __real_bind(socket, address, address_len);
+#endif
+    }
+    
     std::scoped_lock lock(sockets_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
@@ -121,6 +134,17 @@ static int finalize_socket_src(SocketInfo &si, bool isclient) {
 
 int __wrap_listen(int socket, int backlog) {
     // NOTIMPLEMENTED: backlog is ignored.
+    
+    if(socket < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_listen)(int, int);
+        __real_listen = (typeof(__real_listen))dlsym((void *)RTLD_NEXT, "listen");
+        return __real_listen(socket, backlog);
+#else
+        return __real_listen(socket, backlog);
+#endif
+    }
+    
     std::scoped_lock lock(sockets_mutex, pools_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
@@ -137,6 +161,16 @@ int __wrap_listen(int socket, int backlog) {
 }
 
 int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) {
+    if(socket < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_accept)(int, struct sockaddr *, socklen_t *);
+        __real_accept = (typeof(__real_accept))dlsym((void *)RTLD_NEXT, "accept");
+        return __real_accept(socket, address, address_len);
+#else
+        return __real_accept(socket, address, address_len);
+#endif
+    }
+    
     std::unique_lock<std::mutex> lock_sockets(sockets_mutex, std::defer_lock);
     std::unique_lock<std::mutex> lock_pools(pools_mutex, std::defer_lock);
     std::lock(lock_sockets, lock_pools);
@@ -199,6 +233,16 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
 }
 
 int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address_len) {
+    if(socket < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        ssize_t (*__real_connect)(int, const struct sockaddr *, socklen_t);
+        __real_connect = (typeof(__real_connect))dlsym((void *)RTLD_NEXT, "connect");
+        return __real_connect(socket, address, address_len);
+#else
+        return __real_connect(socket, address, address_len);
+#endif
+    }
+
     std::unique_lock<std::mutex> lock(sockets_mutex);
     auto it = sockets.find(socket);
     if(it == sockets.end()) {
@@ -456,3 +500,34 @@ void __wrap_freeaddrinfo(struct addrinfo *res) {
     delete res;
 }
 
+ssize_t __wrap_send(int sockfd, const void *buf, size_t len, int flags) {
+    return __wrap_write(sockfd, buf, len);
+}
+
+ssize_t __wrap_sendto(int sockfd, const void *buf, size_t len, int flags,
+                      const struct sockaddr *dest_addr, socklen_t addrlen) {
+    return __wrap_write(sockfd, buf, len);
+}
+
+ssize_t __wrap_recv(int sockfd, void *buf, size_t len, int flags) {
+    return __wrap_read(sockfd, buf, len);
+}
+
+ssize_t __wrap_recvfrom(int sockfd, void *buf, size_t len, int flags,
+                        struct sockaddr *src_addr, socklen_t *addrlen) {
+    return __wrap_read(sockfd, buf, len);
+}
+
+int __wrap_setsockopt(int sockfd, int level, int optname,
+                      const void *optval, socklen_t optlen) {
+    if(sockfd < VIRTUAL_SOCKET_FD_ST) {
+#ifdef RUNTIME_INTERPOSITION
+        int (*__real_setsockopt)(int, int, int, const void *, socklen_t);
+        __real_setsockopt = (typeof(__real_setsockopt))dlsym((void *)RTLD_NEXT, "setsockopt");
+        return __real_setsockopt(sockfd, level, optname, optval, optlen);
+#else
+        return __real_setsockopt(sockfd, level, optname, optval, optlen);
+#endif
+    }
+    return 0;  // ignore all options.
+}

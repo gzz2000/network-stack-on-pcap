@@ -20,14 +20,28 @@
 #define __wrap_close close
 #define __wrap_getaddrinfo getaddrinfo
 #define __wrap_freeaddrinfo freeaddrinfo
+#define __wrap_send send
+#define __wrap_sendto sendto
+#define __wrap_recv recv
+#define __wrap_recvfrom recvfrom
+#define __wrap_setsockopt setsockopt
 #else
 extern "C" {
-
-int __real_socket(int, int, int);
-ssize_t __real_read(int, void *, size_t);
-ssize_t __real_write(int, const void *, size_t);
-int __real_close(int);
-
+    int __real_socket(int, int, int);
+    int __real_bind(int, const struct sockaddr *, socklen_t);
+    int __real_listen(int, int);
+    int __real_connect(int, const struct sockaddr *, socklen_t);
+    int __real_accept(int, struct sockaddr *, socklen_t *);
+    ssize_t __real_read(int, void *, size_t);
+    ssize_t __real_write(int, const void *, size_t);
+    int __real_close(int);
+    ssize_t __real_send(int sockfd, const void *buf, size_t len, int flags);
+    ssize_t __real_sendto(int sockfd, const void *buf, size_t len, int flags,
+                          const struct sockaddr *dest_addr, socklen_t addrlen);
+    ssize_t __real_recv(int sockfd, void *buf, size_t len, int flags);
+    ssize_t __real_recvfrom(int sockfd, void *buf, size_t len, int flags,
+                            struct sockaddr *src_addr, socklen_t *addrlen);
+    int __real_setsockopt(int, int, int, const void *, socklen_t);
 }
 #endif
 
@@ -93,5 +107,18 @@ int __wrap_getaddrinfo(const char *node, const char *service,
                        struct addrinfo **res);
 
 void __wrap_freeaddrinfo(struct addrinfo *res);
+
+ssize_t __wrap_send(int sockfd, const void *buf, size_t len, int flags);
+
+ssize_t __wrap_sendto(int sockfd, const void *buf, size_t len, int flags,
+                      const struct sockaddr *dest_addr, socklen_t addrlen);
+
+ssize_t __wrap_recv(int sockfd, void *buf, size_t len, int flags);
+
+ssize_t __wrap_recvfrom(int sockfd, void *buf, size_t len, int flags,
+                        struct sockaddr *src_addr, socklen_t *addrlen);
+
+int __wrap_setsockopt(int sockfd, int level, int optname,
+                      const void *optval, socklen_t optlen);
 
 }  // extern "C"
