@@ -18,12 +18,12 @@ Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state) 
     conn.seq = gen_seq();
     conn.ack = conn.usrack = 0;
     conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
-    std::thread thread_worker(tcp_worker_conn, src, dest, std::ref(conn));
-    thread_worker.detach();
+    conn.thread_worker = std::thread(tcp_worker_conn, src, dest, std::ref(conn));
     return conn;
 }
 
 void free_connection(socket_t src, socket_t dest, Connection &conn) {
+    // fprintf(stderr, "Tagging the connection as freed.\n");
     conn.status = STATUS_TERMINATED_FREED;
 }
 
@@ -49,12 +49,14 @@ void tcp_call_close(socket_t src, socket_t dest, Connection &conn) {
         
     case STATUS_SYN_RCVD:
     case STATUS_ESTAB:
-        sendTCPSegment(src, dest, TH_FIN, conn.seq, conn.ack, NULL, 0);
+        sendTCPSegment(src, dest, TH_FIN | TH_ACK, conn.seq, conn.ack, NULL, 0);
+        ++conn.seq;
         conn.status = STATUS_FIN_WAIT_1;
         break;
 
     case STATUS_CLOSE_WAIT:
-        sendTCPSegment(src, dest, TH_FIN, conn.seq, conn.ack, NULL, 0);
+        sendTCPSegment(src, dest, TH_FIN | TH_ACK, conn.seq, conn.ack, NULL, 0);
+        ++conn.seq;
         conn.status = STATUS_LAST_ACK;
         break;
 
@@ -70,9 +72,8 @@ void tcp_worker_conn(socket_t src, socket_t dest, Connection &conn) {
      * Main event loop.
      */
     while(conn.status != STATUS_TERMINATED_FREED) {
-        conn.q_thread.pop()(src, dest, conn);
+        auto f = conn.q_thread.pop();
+        std::scoped_lock lock(conn.conn_mutex);
+        f(src, dest, conn);
     }
-
-    std::scoped_lock lock(pools_mutex);
-    conns.erase(std::make_pair(src, dest));
 }

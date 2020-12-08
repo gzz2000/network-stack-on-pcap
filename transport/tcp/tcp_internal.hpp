@@ -71,8 +71,10 @@ struct Connection;
 typedef void tcpMessageCallback(socket_t, socket_t, Connection &);
 
 struct Connection {
+    std::thread thread_worker;
     messagequeue<std::function<tcpMessageCallback>> q_thread; // jobs for worker thread
     persist_condition cond_socket;    // to fire a message to socket
+    std::mutex conn_mutex;       // purely for supporting read() and write() at external threads.
     tcp_status status;
     timer_index timer_keepalive;
     uint32_t seq, ack, usrack;

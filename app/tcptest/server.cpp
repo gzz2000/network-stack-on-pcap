@@ -93,6 +93,7 @@ int main()
     // Function for chatting between client and server 
     func(connfd); 
   
-    // After chatting close the socket 
+    // After chatting close the socket
+    close(connfd);
     close(sockfd); 
 }

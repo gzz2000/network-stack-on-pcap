@@ -176,6 +176,11 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
         if(conn.status == STATUS_TERMINATED) {
             // connection failed to establish
             conn.q_thread.push(free_connection);
+            conn.thread_worker.join();
+
+            lock_pools.lock();
+            conns.erase(std::make_pair(client_src, client));
+            lock_pools.unlock();
             continue;
         }
         
@@ -214,6 +219,11 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
            conn.status == STATUS_CLOSE_WAIT) break;
         else if(conn.status == STATUS_TERMINATED) {
             conn.q_thread.push(free_connection);
+            conn.thread_worker.join();
+
+            std::scoped_lock lock2(pools_mutex);
+            conns.erase(std::make_pair(si.src, si.dest));
+            
             // note here we don't distinguish between ETIMEOUT and ECONNREFUSED
             errno = ECONNREFUSED;
             return -1;
@@ -259,7 +269,7 @@ ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
     lock_pools.unlock();
 
     while(true) {
-        std::unique_lock<std::mutex> lock_t(conn.q_thread.mutex);
+        std::unique_lock<std::mutex> lock_t(conn.conn_mutex);
         if(!conn.q_recv.empty()) {
             size_t i = 0;
             do {
@@ -334,7 +344,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
 
     size_t i = 0;
     while(i < nbyte) {
-        std::unique_lock<std::mutex> lock_t(conn.q_thread.mutex);
+        std::unique_lock<std::mutex> lock_t(conn.conn_mutex);
         size_t len = std::min(nbyte - i, (size_t)TCP_DATA_MTU);
         conn.q_sent.push(BufferSlice{std::shared_ptr<uint8_t[]>(new uint8_t[len]),
                     conn.seq, len, {}});
@@ -394,6 +404,11 @@ int __wrap_close(int socket) {
         conn.cond_socket.get();    // block until another change.
     }
     conn.q_thread.push(free_connection);
+    conn.thread_worker.join();
+    
+    lock_pools.lock();
+    conns.erase(std::make_pair(src, dest));
+    lock_pools.unlock();
 
     lock_sockets.lock();
     sockets.erase(it);

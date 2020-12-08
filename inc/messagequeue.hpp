@@ -24,9 +24,9 @@ class messagequeue {
     std::queue<T> q;
     std::condition_variable cond;
     std::map<timer_index, T> timers;
+    mutable std::mutex mutex;
 
 public:
-    mutable std::mutex mutex;    // publicize mutex to allow hack outside worker thread
     inline T pop() {
         std::unique_lock<std::mutex> lock(mutex);
         while(q.empty()) {

@@ -116,20 +116,26 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          * If acked by remote side, we can move on to next stage.
          * The remote may also send FIN back, which we may acknowledge.
          */
-        if(tcphdr->ack == conn.seq + 1) {
+        if(tcphdr->ack == conn.seq) {
             // receive ACK of FIN
             if(tcphdr->seq == conn.ack && (tcphdr->flags & TH_FIN)) {
                 conn.status = STATUS_TERMINATED;
+                fprintf(stderr, "received ACK of FIN and remote FIN. connection terminated. %s\n",
+                        segsummary.c_str());
                 conn.cond_socket.set();  // send EOF and close
             }
             else {
                 conn.status = STATUS_FIN_WAIT_2;
+                fprintf(stderr, "received ACK of FIN. waiting for remote to close connection. %s\n",
+                        segsummary.c_str());
             }
         }
         else if(tcphdr->ack == conn.seq) {
             // receive a normal ACK, and our FIN not yet arrived at remote
             if(tcphdr->seq == conn.ack && (tcphdr->flags & TH_FIN)) {
                 conn.status = STATUS_LAST_ACK;
+                fprintf(stderr, "received remote FIN. waiting for ACK of our FIN. %s\n",
+                        segsummary.c_str());
                 conn.cond_socket.set();       // received remote FIN, announcing EOF
             }
         }
@@ -142,6 +148,9 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          */
         if((tcphdr->flags & TH_FIN) && tcphdr->seq == conn.ack) {
             conn.status = STATUS_TERMINATED;
+            fprintf(stderr, "received remote FIN. connection terminated. %s\n",
+                    segsummary.c_str());
+            conn.cond_socket.set();
             // don't need to send ACK here. ACK will be sent at process_normal_segment.
         }
         goto process_normal_segment;
@@ -150,8 +159,10 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         /*
          * For LAST_ACK, we are expecting an ACK of our FIN.
          */
-        if(tcphdr->seq == conn.ack + 1) {
+        if(tcphdr->ack == conn.seq) {
             conn.status = STATUS_TERMINATED;
+            fprintf(stderr, "received ACK of FIN. connection terminated. %s\n",
+                    segsummary.c_str());
             conn.cond_socket.set();   // send EOF and close
             break;
         }
@@ -185,9 +196,10 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                 conn.q_recv.push(BufferSlice{std::shared_ptr<uint8_t[]>(cpy_buf), tcphdr->seq, (std::size_t)payload_len, {}});
                 conn.cond_socket.set();   // announce data arrival
             }
+            if(TH_FIN & tcphdr->flags) ++conn.ack;
             if((TH_FIN & tcphdr->flags) || payload_len) {
                 sendTCPSegment(src, dest, TH_ACK,
-                               conn.seq, conn.ack + !!(TH_FIN & tcphdr->flags),
+                               conn.seq, conn.ack,
                                NULL, 0);
             }
         }

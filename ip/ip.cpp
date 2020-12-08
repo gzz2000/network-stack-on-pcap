@@ -171,6 +171,7 @@ int sendIPPacket(ip_t src, ip_t dest,
     iphdr->ver_ihl = 0x45;
     iphdr->ds_ecn = 0;
     iphdr->total_length = htons(20 + len);
+    iphdr->id = 0;
     iphdr->flags_fo = 1 << 6;    // don't fragment
     iphdr->ttl = 64;
     iphdr->protocol = proto;

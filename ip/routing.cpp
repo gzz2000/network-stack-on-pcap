@@ -30,7 +30,7 @@ static int initRoutingTable(const std::vector<int> &interfaces) {
 }
 
 static int announceRoutingTable(const std::vector<int> &interfaces) {
-    std::scoped_lock lock(routing_table_mutex);
+    std::unique_lock<std::mutex> lock(routing_table_mutex);
     int len = sizeof(int) + routing_table.size() * sizeof(RoutingInformation);
     void *buf = new char[len];
     char *buf_p = (char *)buf;
@@ -40,6 +40,7 @@ static int announceRoutingTable(const std::vector<int> &interfaces) {
         *(RoutingInformation *)buf_p = {rte.dest, rte.mask, rte.hop + 1};
         buf_p += sizeof(RoutingInformation);
     }
+    lock.unlock();
     const mac_t broadcast_mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     for(int id: interfaces) {
         Device *device = getDeviceInfo(id);
@@ -52,6 +53,7 @@ static int announceRoutingTable(const std::vector<int> &interfaces) {
             return -1;
         }
     }
+    delete[] (char *)buf;
     return 0;
 }
 
@@ -65,7 +67,7 @@ void announceServiceWorker(const std::vector<int> interfaces) {
             fprintf(stderr, "[IP Error] announceRoutingTable failed\n");
             return;
         }
-        std::this_thread::sleep_for(1000ms);
+        std::this_thread::sleep_for(100ms);
     }
 }
 
