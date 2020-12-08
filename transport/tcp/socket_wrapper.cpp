@@ -1,7 +1,7 @@
 #include "socket_wrapper.hpp"
 #include "tcp_internal.hpp"
 #include "service.hpp"
-#include "link/ethernet/ethernet.hpp"
+#include "link/ethernet/device.hpp"
 #include "ip/ip.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -36,8 +36,15 @@ std::unordered_map<int, SocketInfo> sockets;
 int __wrap_socket(int domain, int type, int protocol) {
     startTCPService();
     if(domain != AF_INET || type != SOCK_STREAM || (protocol && protocol != IPPROTO_TCP)) {
-        errno = EINVAL;
-        return -1;
+#ifdef RUNTIME_INTERPOSITION
+        int (*__real_socket)(int, int, int);
+        __real_socket = (typeof(__real_socket))dlsym((void *)RTLD_NEXT, "socket");
+        return __real_socket(domain, type, protocol);
+#else
+        return __real_socket(domain, type, protocol);
+#endif
+        // errno = EINVAL;
+        // return -1;
     }
     std::scoped_lock lock(sockets_mutex);
     int id = nxt_vsock_fd++;
@@ -55,7 +62,7 @@ static int system_to_socket_t(const struct sockaddr *address,
         return -1;
     }
     ret.ip = addr->sin_addr.s_addr;
-    ret.port = addr->sin_port;
+    ret.port = ntohs(addr->sin_port);
     return 0;
 }
 
@@ -69,7 +76,7 @@ static int socket_t_to_system(socket_t s,
     struct sockaddr_in *addr = (struct sockaddr_in *)address;
     addr->sin_family = AF_INET;
     addr->sin_addr.s_addr = s.ip;
-    addr->sin_port = s.port;
+    addr->sin_port = htons(s.port);
     *address_len = sizeof(struct sockaddr_in);
     return 0;
 }
@@ -88,8 +95,10 @@ int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_le
     return system_to_socket_t(address, address_len, si.src);
 }
 
-static int finalize_socket_src(SocketInfo &si) {
-    // if(!si.src.ip) si.src.ip = getHostIP();   // wildcard implemented in net_interface.cpp
+static int finalize_socket_src(SocketInfo &si, bool isclient) {
+    if(isclient && !si.src.ip) {
+        si.src.ip = getAnyIP();
+    }
     if(!si.src.port) {
         // choose an ephemeral address from 32769 to 60999
         si.src.port = 32769u;
@@ -121,7 +130,7 @@ int __wrap_listen(int socket, int backlog) {
     }
 
     SocketInfo &si = it->second;
-    if(-1 == finalize_socket_src(si)) return -1;
+    if(-1 == finalize_socket_src(si, false)) return -1;
     binds[si.src];
     si.type = SOCKET_TYPE_BIND;
     return 0;
@@ -196,7 +205,7 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
     lock.unlock();
     socket_t s_dest;
     if(-1 == system_to_socket_t(address, address_len, s_dest)) return -1;
-    if(-1 == finalize_socket_src(si)) return -1;
+    if(-1 == finalize_socket_src(si, true)) return -1;
 
     Connection &conn = init_connection(si.src, s_dest, STATUS_SYN_SENT);
     sendTCPSegment(si.src, s_dest, TH_SYN, conn.seq - 1, conn.ack, NULL, 0);
@@ -404,7 +413,7 @@ int __wrap_getaddrinfo(const char *node, const char *service,
     
     struct sockaddr_in *addr = new struct sockaddr_in;
     addr->sin_family = AF_INET;
-    if(service) addr->sin_port = atoi(service); else addr->sin_port = 0;
+    if(service) addr->sin_port = htons(atoi(service)); else addr->sin_port = 0;
     if(node) {
         if(inet_aton(node, &addr->sin_addr) == 0) {
             fprintf(stderr, "[TCP Error] IP parse failed: %s\n", node);

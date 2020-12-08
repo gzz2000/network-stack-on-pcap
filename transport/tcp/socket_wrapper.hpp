@@ -23,6 +23,7 @@
 #else
 extern "C" {
 
+int __real_socket(int, int, int);
 ssize_t __real_read(int, void *, size_t);
 ssize_t __real_write(int, const void *, size_t);
 int __real_close(int);

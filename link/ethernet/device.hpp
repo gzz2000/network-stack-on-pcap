@@ -6,6 +6,7 @@
  */
 
 #include "common.hpp"
+#include "inc/common.hpp"
 
 /**
  * Add a device to the library for sending/receiving packets. 
@@ -23,3 +24,5 @@ int addDevice(const char* device);
  * was found.
  */
 int findDevice(const char* device);
+
+ip_t getAnyIP();

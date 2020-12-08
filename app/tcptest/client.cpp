@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <chrono>
+#include <thread>
 #define MAX 80 
 #define PORT 8080 
 #define SA struct sockaddr 
@@ -31,7 +33,7 @@ void func(int sockfd)
     } 
 } 
   
-int main() 
+int main(int argc, char **argv) 
 { 
     int sockfd; 
     struct sockaddr_in servaddr; 
@@ -44,11 +46,18 @@ int main()
     } 
     else
         printf("Socket successfully created..\n"); 
-    bzero(&servaddr, sizeof(servaddr)); 
+    bzero(&servaddr, sizeof(servaddr));
+
+    // Need to sleep to wait for routing table setup
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(3s);
+
+    const char *addr = (argc == 2 ? argv[1] : "127.0.0.1");
+    printf("Server address assumed: %s:%d\n", addr, PORT);
   
     // assign IP, PORT 
     servaddr.sin_family = AF_INET; 
-    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+    servaddr.sin_addr.s_addr = inet_addr(addr); 
     servaddr.sin_port = htons(PORT); 
   
     // connect the client socket to server socket 

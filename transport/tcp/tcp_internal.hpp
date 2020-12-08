@@ -116,8 +116,6 @@ void tcp_worker_conn(socket_t src, socket_t dest, Connection &conn);
 // below in recv_segment.cpp
 // responsible for processing remote messages
 
-std::function<tcpMessageCallback> recv_segment_lambda(const void *buf, int len);
-
 void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                            const void *iphdr /* ip packet */, const void *tcpbuf,
                            int payload_len /* payload len */);
