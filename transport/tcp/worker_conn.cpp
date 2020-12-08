@@ -1,16 +1,21 @@
 #include "tcp_internal.hpp"
-#include <cstdlib>
 #include <thread>
+#include <chrono>
 
 std::mutex pools_mutex;
 
 std::unordered_map<std::pair<socket_t, socket_t>, Connection> conns;
 std::unordered_map<socket_t, Bind> binds;
 
+inline static uint32_t gen_seq() {
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count();
+}
+
 Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state) {
     Connection &conn = conns[std::make_pair(src, dest)];
     conn.status = init_state;
-    conn.seq = rand();
+    conn.seq = gen_seq();
     conn.ack = conn.usrack = 0;
     conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     std::thread thread_worker(tcp_worker_conn, src, dest, std::ref(conn));

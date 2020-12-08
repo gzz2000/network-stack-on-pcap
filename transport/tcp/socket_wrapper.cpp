@@ -155,15 +155,15 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
     socket_t src = it->second.src;
     Bind &bind = binds[src];
 
-    socket_t client;
+    socket_t client_src, client;
     while(true) {
         lock_sockets.unlock();
         lock_pools.unlock();
 
-        client = bind.q_socket.pop();
+        std::tie(client_src, client) = bind.q_socket.pop();
         
         std::lock(lock_sockets, lock_pools);
-        Connection &conn = conns[std::make_pair(src, client)];
+        Connection &conn = conns[std::make_pair(client_src, client)];
         lock_sockets.unlock();
         lock_pools.unlock();
 
@@ -180,7 +180,8 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
         }
         
         if(-1 == socket_t_to_system(client, address, address_len)) {
-            bind.q_socket.push(client);  // bad addr length, re-push it back..
+            bind.q_socket.push(std::make_pair(client_src, client));
+            // bad addr length, re-push it back..
             return -1;
         }
         break;
@@ -188,7 +189,7 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
     
     // create a new socket descriptor along with the connection.
     int id = nxt_vsock_fd++;
-    sockets[id] = {SOCKET_TYPE_CONN, src, client};
+    sockets[id] = {SOCKET_TYPE_CONN, client_src, client};
     return id;
 }
 
@@ -203,12 +204,11 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
     SocketInfo &si = it->second;
 
     lock.unlock();
-    socket_t s_dest;
-    if(-1 == system_to_socket_t(address, address_len, s_dest)) return -1;
+    if(-1 == system_to_socket_t(address, address_len, si.dest)) return -1;
     if(-1 == finalize_socket_src(si, true)) return -1;
 
-    Connection &conn = init_connection(si.src, s_dest, STATUS_SYN_SENT);
-    sendTCPSegment(si.src, s_dest, TH_SYN, conn.seq - 1, conn.ack, NULL, 0);
+    Connection &conn = init_connection(si.src, si.dest, STATUS_SYN_SENT);
+    sendTCPSegment(si.src, si.dest, TH_SYN, conn.seq - 1, conn.ack, NULL, 0);
     while(true) {
         if(conn.status == STATUS_ESTAB ||
            conn.status == STATUS_CLOSE_WAIT) break;
@@ -222,9 +222,8 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
     }
 
     lock.lock();
-    int id = nxt_vsock_fd++;
-    sockets[id] = {SOCKET_TYPE_CONN, si.src, s_dest};
-    return id;
+    si.type = SOCKET_TYPE_CONN;
+    return 0;
 }
 
 ssize_t __wrap_read(int fd, void *buf, size_t nbyte) {
@@ -343,6 +342,7 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
         lock_t.unlock();
         memcpy(bs.mem.get(), (const uint8_t *)buf + i, len);
         do_transmit(bs, src, dest, conn);
+        conn.seq += len;
         i += len;
     }
     return nbyte;

@@ -9,6 +9,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
     conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     
     const tcp_header_t *tcphdr = (const tcp_header_t *)tcpbuf;
+    std::string segsummary = debugSegmentSummary(iphdr, tcpbuf, payload_len);
     
     switch(conn.status) {
     case STATUS_CLOSE_WAIT:
@@ -18,8 +19,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         /*
          * For not open or already closed states, we drop all segments received.
          */
-        fprintf(stderr, "[TCP Error] drop segment: connection invalidated. %s\n",
-                debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+        fprintf(stderr, "[TCP Error] drop segment: connection invalidated. %s\n", segsummary.c_str());
         break;
         
     case STATUS_LISTEN:
@@ -35,12 +35,14 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          */
         if(tcphdr->flags != TH_SYN) {
             fprintf(stderr, "[TCP Error] drop segment: listening only to SYN. %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
             break;
         }
         conn.ack = conn.usrack = tcphdr->seq + 1;
         sendTCPSegment(src, dest, TH_SYN | TH_ACK, conn.seq - 1, conn.ack, NULL, 0);
         conn.status = STATUS_SYN_RCVD;
+        fprintf(stderr, "received SYN. sent SYN/ACK. %s\n",
+                segsummary.c_str());
         break;
         
     case STATUS_SYN_SENT:
@@ -54,23 +56,27 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
             conn.ack = conn.usrack = tcphdr->seq + 1;
             sendTCPSegment(src, dest, TH_ACK, conn.seq, conn.ack, NULL, 0);
             conn.status = STATUS_SYN_RCVD;
+            fprintf(stderr, "received peer SYN. sending ACK. %s\n",
+                    segsummary.c_str());
             break;
         }
         else if(tcphdr->flags == (TH_SYN | TH_ACK)) {
             if(tcphdr->ack != conn.seq) {
                 fprintf(stderr, "[TCP Error] drop segment: synack incorrect ack. %s\n",
-                        debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                        segsummary.c_str());
                 break;
             }
             conn.ack = conn.usrack = tcphdr->seq + 1;
             sendTCPSegment(src, dest, TH_ACK, conn.seq, conn.ack, NULL, 0);
             conn.status = STATUS_ESTAB;
+            fprintf(stderr, "received SYN/ACK. sending ACK. connection established. %s\n",
+                    segsummary.c_str());
             conn.cond_socket.set();    // unblock socket API connect() and let it return 0
             break;
         }
         else {
             fprintf(stderr, "[TCP Error] drop segment: SYN_SENT accepting only SYN or SYN/ACK. %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
             break;
         }
 
@@ -83,15 +89,17 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         if(tcphdr->flags == TH_SYN) goto listen_syn;
         if((tcphdr->flags & TH_ACK) == 0 || tcphdr->ack != conn.seq) {
             fprintf(stderr, "[TCP Error] drop segment: no valid ACK. %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
             break;
         }
         if(tcphdr->seq != conn.ack) {
             fprintf(stderr, "[TCP Error] drop segment: wrong ACK, not establishing conn. %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
             break;
         }
         conn.status = STATUS_ESTAB;
+        fprintf(stderr, "received ACK of SYN. connection established. %s\n",
+                segsummary.c_str());
         conn.cond_socket.set();    // unblock socket API connect() and let it return 0
         goto process_normal_segment;   // deal with the data payload
 
@@ -152,7 +160,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
     process_normal_segment:
         if(tcphdr->flags & TH_SYN) {
             fprintf(stderr, "[TCP Error] drop segment: not accepting syn as normal. %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
             break;
         }
         // NOTIMPLEMENTED: TH_PSH. We always give data to socket API at once without buffering anymore.
@@ -177,21 +185,23 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                 conn.q_recv.push(BufferSlice{std::shared_ptr<uint8_t[]>(cpy_buf), tcphdr->seq, (std::size_t)payload_len, {}});
                 conn.cond_socket.set();   // announce data arrival
             }
-            sendTCPSegment(src, dest, TH_ACK,
-                           conn.seq, conn.ack + !!(TH_FIN & tcphdr->flags),
-                           NULL, 0);
+            if((TH_FIN & tcphdr->flags) || payload_len) {
+                sendTCPSegment(src, dest, TH_ACK,
+                               conn.seq, conn.ack + !!(TH_FIN & tcphdr->flags),
+                               NULL, 0);
+            }
         }
         else {
             // NOTIMPLEMENTED: selective ack, and buffering out-of-order segments
             fprintf(stderr, "[TCP Error] out-of-order segment %s\n",
-                    debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                    segsummary.c_str());
         }
         break;
 
     default:
         fprintf(stderr, "[TCP Error] ERROR: UNKNOWN STATE (%d) WHEN RECEIVING PACKET. %s\n",
                 conn.status,
-                debugSegmentSummary(iphdr, tcpbuf, payload_len).c_str());
+                segsummary.c_str());
     }
     
     if(tcphdr->flags & TH_RST) {
@@ -199,6 +209,8 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          * If RST is received, unconditionally terminate the connection.
          */
         kill_connection(src, dest, conn);
+        fprintf(stderr, "Received RST. closing connection. %s\n",
+                segsummary.c_str());
         return;
     }
 }

@@ -119,21 +119,33 @@ int ipCallbackTCP(const void *buf, int len) {
     };
     
     std::scoped_lock lock(pools_mutex);
-    
-    if(auto it_b = binds.find(dst_socket); it_b != binds.end()) {
+
+    if(auto it_c = conns.find(std::make_pair(dst_socket, src_socket));
+            it_c != conns.end()) {
+        it_c->second.q_thread.push(recv_segment_lambda);
+    }
+    else if(tcphdr->flags != TH_SYN) {
+        fprintf(stderr, "[TCP Error] only SYN can be sent to bind. %s\n",
+                debugSegmentSummary(iphdr, tcphdr, payload_len).c_str());
+    }
+    else if(auto it_b = binds.find(dst_socket); it_b != binds.end()) {
+        if(tcphdr->flags != TH_SYN) {
+            fprintf(stderr, "[TCP Error] only SYN can be sent to bind. %s\n",
+                    debugSegmentSummary(iphdr, tcphdr, payload_len).c_str());
+        }
         Connection &conn = init_connection(dst_socket, src_socket, STATUS_LISTEN);
         conn.q_thread.push(recv_segment_lambda);
-        it_b->second.q_socket.push(src_socket);
+        it_b->second.q_socket.push(std::make_pair(dst_socket, src_socket));
     }
     else if(auto it_b = binds.find(socket_t{0u, dst_socket.port}); it_b != binds.end()) {
+        if(tcphdr->flags != TH_SYN) {
+            fprintf(stderr, "[TCP Error] only SYN can be sent to bind. %s\n",
+                    debugSegmentSummary(iphdr, tcphdr, payload_len).c_str());
+        }
         // wildcard bind
         Connection &conn = init_connection(dst_socket, src_socket, STATUS_LISTEN);
         conn.q_thread.push(recv_segment_lambda);
-        it_b->second.q_socket.push(src_socket);
-    }
-    else if(auto it_c = conns.find(std::make_pair(dst_socket, src_socket));
-            it_c != conns.end()) {
-        it_c->second.q_thread.push(recv_segment_lambda);
+        it_b->second.q_socket.push(std::make_pair(dst_socket, src_socket));
     }
     else {
         fprintf(stderr, "[TCP Error] TCP segment not corresponding to any socket: %s\n",

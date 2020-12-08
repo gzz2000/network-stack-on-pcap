@@ -8,7 +8,7 @@
 // after this amount of idle the connection is terminated abruptly.
 #define TIMEOUT_KEEPALIVE 120000  // 2 min.
 
-#define TIMEOUT_RETRANSMISSION 2000  // 2s
+#define TIMEOUT_RETRANSMISSION 5000  // 5s
 
 #define TCP_DATA_MTU 1200  // 1200 bytes
 
