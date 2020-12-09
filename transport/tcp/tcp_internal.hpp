@@ -74,21 +74,21 @@ struct Connection {
     std::thread thread_worker;
     messagequeue<std::function<tcpMessageCallback>> q_thread; // jobs for worker thread
     persist_condition cond_socket;    // to fire a message to socket
+    int q_socket_fd;  // to write and read
     std::mutex conn_mutex;       // purely for supporting read() and write() at external threads.
     tcp_status status;
     timer_index timer_keepalive;
-    uint32_t seq, ack, usrack;
-    std::queue<BufferSlice> q_recv, q_sent;
+    uint32_t seq, ack;
+    std::queue<BufferSlice> q_sent;
 
     // seq: next byte to send
     // ack: next byte to receive
-    // usrack: next byte to read from API
-    // q_recv: data received but not yet read by user thread
     // q_sent: data sent but not yet acked by remote
 };
 
 struct Bind {
-    messagequeue<std::pair<socket_t, socket_t>> q_socket;
+    int q_socket_fd;
+    // messagequeue<std::pair<socket_t, socket_t>> q_socket;
     // to announce the connection of a client, put the client's socket into q_socket.
     // we should put the client's destination (our source), too, because
     // we must support wildcard bindings.
@@ -107,7 +107,7 @@ extern std::unordered_map<socket_t, Bind> binds;
  * initialize a connection
  * seq set to random, ack set to 0, launch worker thread, and start keepalive timer
  */
-Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state);
+Connection &init_connection(socket_t src, socket_t dest, int q_socket_fd, tcp_status init_state);
 
 void free_connection(socket_t src, socket_t dest, Connection &conn);
 

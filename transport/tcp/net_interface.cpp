@@ -1,8 +1,28 @@
 #include "tcp_internal.hpp"
 #include "link/ethernet/getaddr.hpp"
 #include "ip/ip.hpp"
+#include "socket_wrapper.hpp"
 #include <arpa/inet.h>
 #include <cstring>
+
+/*
+ * Writes a struct socket_accept_t to q_sockfd
+ * and returns inited connection
+ */
+static Connection *announce_for_accept(int q_sockfd, socket_t src, socket_t dst) {
+    int sv[2];
+    if(socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
+        fprintf(stderr, "[TCP Error] announce_for_accept failed to create socket pair. leaking!!\n");
+        return NULL;
+    }
+    Connection &conn = init_connection(src, dst, sv[1], STATUS_LISTEN);
+    socket_accept_t pair{src, dst, {sv[0], sv[1]}};
+#ifdef RUNTIME_INTERPOSITION
+    init_reals();
+#endif
+    __real_write(q_sockfd, &pair, sizeof(socket_accept_t));
+    return &conn;
+}
 
 std::string debugSegmentSummary(const void *iphdr_0, const void *tcpbuf, int len) {
     const ip_header_t *iphdr = (const ip_header_t *)iphdr_0;
@@ -44,7 +64,7 @@ uint16_t computeTCPChecksum(const void *iphdr_0, const void *tcpbuf, int len /* 
     const uint8_t *data = (uint8_t *)tcpbuf + 4 * (tcphdr->data_offset >> 4);
     for(int i = 0; i < len; i += 2) {
         if(i + 2 <= len) sum += *(uint16_t *)(data + i);
-        else sum += (uint16_t)(data[i]) << 8;
+        else sum += (uint16_t)(data[i]);
     }
     // one's complement
     sum = (sum & 0xFFFF) + (sum >> 16);
@@ -133,9 +153,8 @@ int ipCallbackTCP(const void *buf, int len) {
             fprintf(stderr, "[TCP Error] only SYN can be sent to bind. %s\n",
                     debugSegmentSummary(iphdr, tcphdr, payload_len).c_str());
         }
-        Connection &conn = init_connection(dst_socket, src_socket, STATUS_LISTEN);
+        Connection &conn = *announce_for_accept(it_b->second.q_socket_fd, dst_socket, src_socket);
         conn.q_thread.push(recv_segment_lambda);
-        it_b->second.q_socket.push(std::make_pair(dst_socket, src_socket));
     }
     else if(auto it_b = binds.find(socket_t{0u, dst_socket.port}); it_b != binds.end()) {
         if(tcphdr->flags != TH_SYN) {
@@ -143,9 +162,8 @@ int ipCallbackTCP(const void *buf, int len) {
                     debugSegmentSummary(iphdr, tcphdr, payload_len).c_str());
         }
         // wildcard bind
-        Connection &conn = init_connection(dst_socket, src_socket, STATUS_LISTEN);
+        Connection &conn = *announce_for_accept(it_b->second.q_socket_fd, dst_socket, src_socket);
         conn.q_thread.push(recv_segment_lambda);
-        it_b->second.q_socket.push(std::make_pair(dst_socket, src_socket));
     }
     else {
         fprintf(stderr, "[TCP Error] TCP segment not corresponding to any socket: %s\n",

@@ -12,6 +12,11 @@ struct socket_t {
     uint16_t port;
 };
 
+struct socket_accept_t {
+    socket_t a, b;
+    int sv[2];
+};
+
 inline bool operator == (socket_t a, socket_t b) {
     return a.ip == b.ip && a.port == b.port;
 }

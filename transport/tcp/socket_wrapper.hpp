@@ -10,6 +10,7 @@
 #include <netdb.h>
 
 #ifdef RUNTIME_INTERPOSITION
+
 #define __wrap_socket socket
 #define __wrap_bind bind
 #define __wrap_listen listen
@@ -25,6 +26,21 @@
 #define __wrap_recv recv
 #define __wrap_recvfrom recvfrom
 #define __wrap_setsockopt setsockopt
+#define __wrap_getsockname getsockname
+
+extern int (*__real_socket)(int, int, int);
+extern ssize_t (*__real_bind)(int, const struct sockaddr *, socklen_t);
+extern ssize_t (*__real_listen)(int, int);
+extern ssize_t (*__real_accept)(int, struct sockaddr *, socklen_t *);
+extern ssize_t (*__real_connect)(int, const struct sockaddr *, socklen_t);
+extern ssize_t (*__real_read)(int, void *, size_t);
+extern ssize_t (*__real_write)(int, const void *, size_t);
+extern int (*__real_close)(int);
+extern int (*__real_setsockopt)(int, int, int, const void *, socklen_t);
+extern int (*__real_getsockname)(int, struct sockaddr *, socklen_t *);
+
+void init_reals();
+
 #else
 extern "C" {
     int __real_socket(int, int, int);
@@ -42,6 +58,7 @@ extern "C" {
     ssize_t __real_recvfrom(int sockfd, void *buf, size_t len, int flags,
                             struct sockaddr *src_addr, socklen_t *addrlen);
     int __real_setsockopt(int, int, int, const void *, socklen_t);
+    int __real_getsockname(int, struct sockaddr *, socklen_t *);
 }
 #endif
 
@@ -98,15 +115,15 @@ ssize_t __wrap_write(int fd, const void *buf, size_t nbyte);
  */
 int __wrap_close(int fd);
 
-/** 
- * @see [POSIX.1-2017:getaddrinfo](http://pubs.opengroup.org/onlinepubs/
- * 9699919799/functions/getaddrinfo.html)
- */
-int __wrap_getaddrinfo(const char *node, const char *service,
-                       const struct addrinfo *hints,
-                       struct addrinfo **res);
+// /** 
+//  * @see [POSIX.1-2017:getaddrinfo](http://pubs.opengroup.org/onlinepubs/
+//  * 9699919799/functions/getaddrinfo.html)
+//  */
+// int __wrap_getaddrinfo(const char *node, const char *service,
+//                        const struct addrinfo *hints,
+//                        struct addrinfo **res);
 
-void __wrap_freeaddrinfo(struct addrinfo *res);
+// void __wrap_freeaddrinfo(struct addrinfo *res);
 
 ssize_t __wrap_send(int sockfd, const void *buf, size_t len, int flags);
 
@@ -120,5 +137,7 @@ ssize_t __wrap_recvfrom(int sockfd, void *buf, size_t len, int flags,
 
 int __wrap_setsockopt(int sockfd, int level, int optname,
                       const void *optval, socklen_t optlen);
+
+int __wrap_getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 
 }  // extern "C"

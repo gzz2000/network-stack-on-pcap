@@ -1,4 +1,5 @@
 #include "tcp_internal.hpp"
+#include "socket_wrapper.hpp"
 #include <arpa/inet.h>
 #include <cstring>
 
@@ -38,7 +39,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                     segsummary.c_str());
             break;
         }
-        conn.ack = conn.usrack = tcphdr->seq + 1;
+        conn.ack = tcphdr->seq + 1;
         sendTCPSegment(src, dest, TH_SYN | TH_ACK, conn.seq - 1, conn.ack, NULL, 0);
         conn.status = STATUS_SYN_RCVD;
         fprintf(stderr, "received SYN. sent SYN/ACK. %s\n",
@@ -53,7 +54,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
          * for SYN/ACK received (common case), we send ACK and establish the connection.
          */
         if(tcphdr->flags == TH_SYN) {
-            conn.ack = conn.usrack = tcphdr->seq + 1;
+            conn.ack = tcphdr->seq + 1;
             sendTCPSegment(src, dest, TH_ACK, conn.seq, conn.ack, NULL, 0);
             conn.status = STATUS_SYN_RCVD;
             fprintf(stderr, "received peer SYN. sending ACK. %s\n",
@@ -66,7 +67,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                         segsummary.c_str());
                 break;
             }
-            conn.ack = conn.usrack = tcphdr->seq + 1;
+            conn.ack = tcphdr->seq + 1;
             sendTCPSegment(src, dest, TH_ACK, conn.seq, conn.ack, NULL, 0);
             conn.status = STATUS_ESTAB;
             fprintf(stderr, "received SYN/ACK. sending ACK. connection established. %s\n",
@@ -191,10 +192,11 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
         if(tcphdr->seq == conn.ack) {
             if(payload_len) {
                 conn.ack += payload_len;
-                uint8_t *cpy_buf = new uint8_t[payload_len];
-                memcpy(cpy_buf, (const uint8_t *)tcpbuf + 4 * (tcphdr->data_offset >> 4), payload_len);
-                conn.q_recv.push(BufferSlice{std::shared_ptr<uint8_t[]>(cpy_buf), tcphdr->seq, (std::size_t)payload_len, {}});
-                conn.cond_socket.set();   // announce data arrival
+                const uint8_t *payload = (const uint8_t *)tcpbuf + 4 * (tcphdr->data_offset >> 4);
+#ifdef RUNTIME_INTERPOSITION
+                init_reals();
+#endif
+                __real_write(conn.q_socket_fd, payload, payload_len);
             }
             if(TH_FIN & tcphdr->flags) ++conn.ack;
             if((TH_FIN & tcphdr->flags) || payload_len) {

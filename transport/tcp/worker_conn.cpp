@@ -12,11 +12,12 @@ inline static uint32_t gen_seq() {
     return duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count();
 }
 
-Connection &init_connection(socket_t src, socket_t dest, tcp_status init_state) {
+Connection &init_connection(socket_t src, socket_t dest, int q_socket_fd, tcp_status init_state) {
     Connection &conn = conns[std::make_pair(src, dest)];
     conn.status = init_state;
     conn.seq = gen_seq();
-    conn.ack = conn.usrack = 0;
+    conn.ack = 0;
+    conn.q_socket_fd = q_socket_fd;
     conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     conn.thread_worker = std::thread(tcp_worker_conn, src, dest, std::ref(conn));
     return conn;

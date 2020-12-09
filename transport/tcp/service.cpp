@@ -1,5 +1,6 @@
 #include "ip/ip.hpp"
 #include "tcp_internal.hpp"
+#include "socket_wrapper.hpp"
 #include <chrono>
 
 static bool is_started;
@@ -7,6 +8,9 @@ static bool is_started;
 void startTCPService() {
     if(is_started) return;
     is_started = true;
+#ifdef RUNTIME_INTERPOSITION
+    init_reals();
+#endif
     setIPPacketReceiveCallback(ipCallbackTCP);
     startIPService(scanAllDevices("veth"));
     // Need to sleep to wait for routing table setup
