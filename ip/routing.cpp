@@ -67,7 +67,7 @@ void announceServiceWorker(const std::vector<int> interfaces) {
             fprintf(stderr, "[IP Error] announceRoutingTable failed\n");
             return;
         }
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(500ms);
     }
 }
 
