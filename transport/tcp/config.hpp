@@ -12,3 +12,4 @@
 
 #define TCP_DATA_MTU 1200  // 1200 bytes
 
+#define TCP_WINDOW_SIZE 16384   // 16kB

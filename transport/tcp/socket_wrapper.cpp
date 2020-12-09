@@ -1,5 +1,6 @@
 #include "socket_wrapper.hpp"
 #include "tcp_internal.hpp"
+#include "config.hpp"
 #include "service.hpp"
 #include "link/ethernet/device.hpp"
 #include "ip/ip.hpp"
@@ -55,14 +56,17 @@ struct SocketInfo {
     socket_type type;
     socket_t src, dest;
     int sv[2];
+    std::thread thread_writebuf;
 };
 
 std::mutex sockets_mutex;
 std::unordered_map<int, SocketInfo> sockets;
 
+static void thread_write_buf_monitor(int readfd, socket_t src, socket_t dest, Connection &conn);
+
 int __wrap_socket(int domain, int type, int protocol) {
-    fprintf(stderr, "__wrap_socket called, domain=%d,type=%d,protocol=%d\n",
-            domain, type, protocol);
+    // fprintf(stderr, "__wrap_socket called, domain=%d,type=%d,protocol=%d\n",
+    //         domain, type, protocol);
     startTCPService();
 
     if(domain == AF_INET6) {
@@ -84,7 +88,7 @@ int __wrap_socket(int domain, int type, int protocol) {
     if(socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) return -1;
     
     std::scoped_lock lock(sockets_mutex);
-    sockets[sv[0]] = {SOCKET_TYPE_IDLE, {0, 0}, {0, 0}, {sv[0], sv[1]}};
+    sockets[sv[0]] = {SOCKET_TYPE_IDLE, {0, 0}, {0, 0}, {sv[0], sv[1]}, {}};
     fprintf(stderr, "__wrap_socket returned special socket %d\n", sv[0]);
     return sv[0];
 }
@@ -259,16 +263,17 @@ int __wrap_accept(int socket, struct sockaddr *address, socklen_t *address_len) 
     }
     
     std::scoped_lock lock(sockets_mutex);
-    sockets[pair.sv[0]] = {SOCKET_TYPE_CONN, pair.a, pair.b, {pair.sv[0], pair.sv[1]}};
+    sockets[pair.sv[0]] = {SOCKET_TYPE_CONN, pair.a, pair.b, {pair.sv[0], pair.sv[1]},
+                           std::thread(thread_write_buf_monitor, pair.sv[1], pair.a, pair.b, std::ref(conn))};
     return pair.sv[0];
 }
 
 int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address_len) {
+#ifdef RUNTIME_INTERPOSITION
+    init_reals();
+#endif
     SocketInfo *psi = find_socket(socket);
     if(!psi) {
-#ifdef RUNTIME_INTERPOSITION
-        init_reals();
-#endif
         return __real_connect(socket, address, address_len);
     }
     SocketInfo &si = *psi;
@@ -299,6 +304,7 @@ int __wrap_connect(int socket, const struct sockaddr *address, socklen_t address
     }
 
     si.type = SOCKET_TYPE_CONN;
+    si.thread_writebuf = std::thread(thread_write_buf_monitor, si.sv[1], si.src, si.dest, std::ref(conn));
     return 0;
 }
 
@@ -319,75 +325,79 @@ static void do_transmit(BufferSlice &bs,
             }, TIMEOUT_RETRANSMISSION);
 }
 
-ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
-    SocketInfo *psi = find_socket(fd);
-    if(!psi) {
-#ifdef RUNTIME_INTERPOSITION
-        init_reals();
-#endif
-        return __real_write(fd, buf, nbyte);
-    }
-    
-    if(psi->type != SOCKET_TYPE_CONN){
-        fprintf(stderr, "[TCP Error] socket is not an established connection\n");
-        errno = EINVAL;
-        return -1;
-    }
-    socket_t src = psi->src, dest = psi->dest;
-    Connection &conn = *find_connection(src, dest);
-    
-    if(conn.status == STATUS_FIN_WAIT_1 || conn.status == STATUS_FIN_WAIT_2 ||
-       conn.status == STATUS_TERMINATED) {
-        errno = EPIPE;  // NOTIMPLEMENTED: no sigpipe sent.
-        return 0;     // client side already closed. in fact, only TERMINATED is expected in current implementation.
-    }
-
+static void thread_write_buf_monitor(int readfd, socket_t src, socket_t dest, Connection &conn) {
+    uint8_t buf[TCP_DATA_MTU];
     // NOTIMPLEMENTED: no any form of window. all data are sent at once, congesting the network at the furthest possible.
-
-    size_t i = 0;
-    while(i < nbyte) {
+    while(true) {
+        ssize_t len = __real_read(readfd, buf, TCP_DATA_MTU);
+        if(len < 0) continue;
+        if(len == 0) break;
         std::unique_lock<std::mutex> lock_t(conn.conn_mutex);
-        size_t len = std::min(nbyte - i, (size_t)TCP_DATA_MTU);
+        
+        if(conn.status == STATUS_FIN_WAIT_1 || conn.status == STATUS_FIN_WAIT_2 ||
+           conn.status == STATUS_TERMINATED) {
+            // previously implemented in __wrap_write
+            // now not possible. but we can signal this perhaps using syscall
+            return;
+            // errno = EPIPE;  // NOTIMPLEMENTED: no sigpipe sent.
+            // return 0;     // client side already closed. in fact, only TERMINATED is expected in current implementation.
+        }
+        
         conn.q_sent.push(BufferSlice{std::shared_ptr<uint8_t[]>(new uint8_t[len]),
-                    conn.seq, len, {}});
+                    conn.seq, (size_t)len, {}});
         BufferSlice &bs = conn.q_sent.back();
-        lock_t.unlock();
-        memcpy(bs.mem.get(), (const uint8_t *)buf + i, len);
-        do_transmit(bs, src, dest, conn);
+        memcpy(bs.mem.get(), buf, len);
         conn.seq += len;
-        i += len;
+        lock_t.unlock();
+        do_transmit(bs, src, dest, conn);
     }
-    return nbyte;
+    conn.q_thread.push(tcp_call_close);   // close connection once write is finished with EOF (close is called)
+}
+
+ssize_t __wrap_write(int fd, const void *buf, size_t nbyte) {
+#ifdef RUNTIME_INTERPOSITION
+    init_reals();
+#endif
+    return __real_write(fd, buf, nbyte);
 }
 
 int __wrap_close(int socket) {
+#ifdef RUNTIME_INTERPOSITION
+    init_reals();
+#endif
+    
     SocketInfo *psi = find_socket(socket);
     if(!psi) {
-#ifdef RUNTIME_INTERPOSITION
-        init_reals();
-#endif
         return __real_close(socket);
     }
 
     if(psi->type == SOCKET_TYPE_IDLE) {
-        // do nothing
+        __real_close(psi->sv[0]);
+        __real_close(psi->sv[1]);
     }
     else if(psi->type == SOCKET_TYPE_BIND) {
-        // manually remove the bind item
-        std::scoped_lock lock(pools_mutex);
-        binds.erase(psi->src);
+        {   // manually remove the bind item
+            std::scoped_lock lock(pools_mutex);
+            binds.erase(psi->src);
+        }
+        
+        __real_close(psi->sv[0]);
+        __real_close(psi->sv[1]);
     }
     else {
-        // else: psi->type != SOCKET_TYPE_CONN
+        // else: psi->type == SOCKET_TYPE_CONN
         
         socket_t src = psi->src, dest = psi->dest;
         Connection &conn = *find_connection(src, dest);
 
-        conn.q_thread.push(tcp_call_close);
-
+        conn.q_socket_fd = 0;
+        __real_close(psi->sv[0]);
+        psi->thread_writebuf.join();
+        
         while(conn.status != STATUS_TERMINATED) {
             conn.cond_socket.get();    // block until another change.
         }
+        __real_close(psi->sv[1]);
         conn.q_thread.push(free_connection);
         conn.thread_worker.join();
         
@@ -396,11 +406,6 @@ int __wrap_close(int socket) {
     }
 
     std::scoped_lock lock(sockets_mutex);
-#ifdef RUNTIME_INTERPOSITION
-    init_reals();
-#endif
-    __real_close(psi->sv[0]);
-    __real_close(psi->sv[1]);
     sockets.erase(sockets.find(socket));
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "tcp_internal.hpp"
+#include "config.hpp"
 #include "link/ethernet/getaddr.hpp"
 #include "ip/ip.hpp"
 #include "socket_wrapper.hpp"
@@ -83,7 +84,7 @@ void sendTCPSegment(socket_t src, socket_t dest, uint8_t flags,
     tcphdr->ack = htonl(ack);
     tcphdr->data_offset = 5 << 4;
     tcphdr->flags = flags;
-    tcphdr->window_size = htons(16384);
+    tcphdr->window_size = htons(TCP_WINDOW_SIZE);
     tcphdr->urgent_p = 0;
     memcpy(tcpbuf + 20, buf, len);
     ip_header_t pseudo_iphdr;
