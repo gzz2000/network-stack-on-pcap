@@ -141,20 +141,26 @@ int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_le
 }
 
 static int finalize_socket_src(SocketInfo &si, bool isclient) {
+    static int nxt_port_to_search = 32769;
+    
+    std::scoped_lock lock(pools_mutex);
     if(isclient && !si.src.ip) {
         si.src.ip = getAnyIP();
     }
     if(!si.src.port) {
         // choose an ephemeral address from 32769 to 60999
-        si.src.port = 32769u;
+        si.src.port = nxt_port_to_search;
         while(binds.count(si.src)) {
             ++si.src.port;
-            if(si.src.port == 61000u) {
+            if(si.src.port == 61000u) si.src.port = 32769u;
+            if(si.src.port == nxt_port_to_search) {
                 // no ephemeral port available
                 errno = EADDRINUSE;
                 return -1;
             }
         }
+        nxt_port_to_search = si.src.port + 1;
+        if(nxt_port_to_search == 61000u) nxt_port_to_search = 32769u;
     }
     if(binds.count(si.src)) {
         // specified port unavailable
