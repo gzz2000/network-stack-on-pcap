@@ -196,10 +196,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
 #ifdef RUNTIME_INTERPOSITION
                 init_reals();
 #endif
-                // TODO possible race here: the paired fd closed completely, instead of partially
-                // due to the discrepancy between TCP half-plex and socket full-plex
-                if(conn.q_socket_fd)
-                    __real_write(conn.q_socket_fd, payload, payload_len);
+                __real_write(conn.q_socket_fd, payload, payload_len);
             }
             if(TH_FIN & tcphdr->flags) ++conn.ack;
             if((TH_FIN & tcphdr->flags) || payload_len) {

@@ -389,14 +389,14 @@ int __wrap_close(int socket) {
         
         socket_t src = psi->src, dest = psi->dest;
         Connection &conn = *find_connection(src, dest);
-
-        conn.q_socket_fd = 0;
-        __real_close(psi->sv[0]);
+        
+        shutdown(psi->sv[0], SHUT_WR);
         psi->thread_writebuf.join();
         
         while(conn.status != STATUS_TERMINATED) {
             conn.cond_socket.get();    // block until another change.
         }
+        __real_close(psi->sv[0]);
         __real_close(psi->sv[1]);
         conn.q_thread.push(free_connection);
         conn.thread_worker.join();
