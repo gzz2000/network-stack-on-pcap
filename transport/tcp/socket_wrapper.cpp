@@ -10,6 +10,7 @@
 #include <thread>
 #include <unordered_map>
 #include <arpa/inet.h>
+#include <chrono>
 
 #ifdef RUNTIME_INTERPOSITION
 #include <dlfcn.h>
@@ -45,6 +46,11 @@ void init_reals() {
 #else
 #include <unistd.h>
 #endif
+
+inline static uint16_t gen_initial_port() {
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(high_resolution_clock::now().time_since_epoch()).count() % 30000u + 32800u;
+}
 
 enum socket_type {
     SOCKET_TYPE_IDLE = 0,
@@ -145,7 +151,8 @@ int __wrap_bind(int socket, const struct sockaddr *address, socklen_t address_le
 }
 
 static int finalize_socket_src(SocketInfo &si, bool isclient) {
-    static int nxt_port_to_search = 32769;
+    static int nxt_port_to_search = 0;
+    if(nxt_port_to_search == 0) nxt_port_to_search = gen_initial_port();
     
     std::scoped_lock lock(pools_mutex);
     if(isclient && !si.src.ip) {

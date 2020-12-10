@@ -18,7 +18,7 @@ Connection &init_connection(socket_t src, socket_t dest, int q_socket_fd, tcp_st
     conn.seq = gen_seq();
     conn.ack = 0;
     conn.q_socket_fd = q_socket_fd;
-    conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
+    conn.timer_keepalive = conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     conn.thread_worker = std::thread(tcp_worker_conn, src, dest, std::ref(conn));
     return conn;
 }

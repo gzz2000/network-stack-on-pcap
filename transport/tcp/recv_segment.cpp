@@ -7,7 +7,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                            const void *iphdr /* ip packet */, const void *tcpbuf,
                            int payload_len /* payload len */) {
     conn.q_thread.clearTimeout(conn.timer_keepalive);
-    conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
+    conn.timer_keepalive = conn.q_thread.setTimeout(kill_connection, TIMEOUT_KEEPALIVE);
     
     const tcp_header_t *tcphdr = (const tcp_header_t *)tcpbuf;
     std::string segsummary = debugSegmentSummary(iphdr, tcpbuf, payload_len);
