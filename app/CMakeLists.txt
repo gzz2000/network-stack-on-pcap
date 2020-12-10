@@ -15,3 +15,5 @@ add_executable(tcptest_server_wrap tcptest/server.cpp)
 target_link_libraries(tcptest_client_wrap ${LIBS_LINK})
 target_link_libraries(tcptest_server_wrap ${LIBS_LINK})
 
+add_executable(nat_gateway nat/gateway.cpp)
+target_link_libraries(nat_gateway PUBLIC ip)
