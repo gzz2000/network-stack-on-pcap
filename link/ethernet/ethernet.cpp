@@ -59,7 +59,9 @@ int startCapturing(int id) {
     while((res = pcap_next_ex(device->fp, &header, &pkt_data)) >= 0) {
         if(res == 0) continue;
         // fprintf(stderr, "Received a packet with len=%d at %ld us\n", header->len, header->ts.tv_usec);
-        int ret = callback(pkt_data, header->len, id);
+        int ret;
+        if(device->special_callback) ret = device->special_callback(pkt_data, header->len, id);
+        else ret = callback(pkt_data, header->len, id);
         if(ret < 0) {
             fprintf(stderr, "[Error] ethernet callback failed (%d).\n", ret);
             // return -1;   // we no longer abort capture on callback failure.

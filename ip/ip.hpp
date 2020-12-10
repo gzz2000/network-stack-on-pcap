@@ -21,7 +21,7 @@ std::vector<int> scanAllDevices(const char *startsWith = NULL);
  * @brief Start listening on all devices in background.
  * will return after all threads are launched.
  */
-void startIPService(const std::vector<int> &interfaces);
+void startIPService(const std::vector<int> &interfaces, bool is_gateway = false);
 
 /**
  * @brief Send an IP packet to specified host. 

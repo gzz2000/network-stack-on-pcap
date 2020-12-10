@@ -156,8 +156,8 @@ int frameCallback(const void *buf, int len, int id) {
     }
 }
 
-void startIPService(const std::vector<int> &interfaces) {
-    std::thread t_announce(announceServiceWorker, interfaces);
+void startIPService(const std::vector<int> &interfaces, bool is_gateway) {
+    std::thread t_announce(announceServiceWorker, interfaces, is_gateway);
     t_announce.detach();
     setFrameReceiveCallback(frameCallback);
     startComposedCapturing(interfaces);

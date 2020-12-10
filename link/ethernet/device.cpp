@@ -11,7 +11,7 @@ std::vector<Device> active_devices;
 
 static ip_t any_ip;
 
-int addDevice(const char *device) {
+int addDeviceWithCallback(const char *device, frameReceiveCallback callback) {
     char errbuf[PCAP_ERRBUF_SIZE];
     errbuf[0] = 0;
     
@@ -30,6 +30,7 @@ int addDevice(const char *device) {
     u_char *mac = active_devices[id].mac;
     getMACAddress(device, mac);
     active_devices[id].ip = getIPAddress(device);
+    active_devices[id].special_callback = callback;
     any_ip = active_devices[id].ip;
 
     fprintf(stderr, "Opened adapter '%s' with MAC address %s, system configured IP address %s.\n",
@@ -38,6 +39,10 @@ int addDevice(const char *device) {
     
     device2id[device] = id;
     return id;
+}
+
+int addDevice(const char *device) {
+    return addDeviceWithCallback(device, NULL);
 }
 
 int findDevice(const char *device) {

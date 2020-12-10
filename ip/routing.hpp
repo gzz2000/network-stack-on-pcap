@@ -19,7 +19,7 @@ const int MAX_HOP = 1000;  // when hop count > this, entries are deleted
  * This function is expected to be called in a separate thread.
  * @param interfaces the interfaces to send packets to.
  */
-void announceServiceWorker(const std::vector<int> interfaces);
+void announceServiceWorker(const std::vector<int> interfaces, bool is_gateway);
 
 struct RoutingTableEntry {
     ip_t dest, mask;

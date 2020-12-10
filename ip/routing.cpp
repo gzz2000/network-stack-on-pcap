@@ -12,7 +12,7 @@ using namespace std::chrono_literals;
 std::mutex routing_table_mutex;
 std::list<RoutingTableEntry> routing_table;
 
-static int initRoutingTable(const std::vector<int> &interfaces) {
+static int initRoutingTable(const std::vector<int> &interfaces, bool is_gateway) {
     std::scoped_lock lock(routing_table_mutex);
     routing_table.clear();
     for(int id: interfaces) {
@@ -21,10 +21,18 @@ static int initRoutingTable(const std::vector<int> &interfaces) {
             fprintf(stderr, "[IP Error] Device id %d invalid.\n", id);
             return -1;
         }
-        setRoutingTable({device->ip, (ip_t)~0 /* single IP */,
-                    -1 /* this device.*/,
-                    {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},  // doesn't matter
-                    0});
+        if(is_gateway) {
+            setRoutingTable({0u, 0u, /* all IPs */
+                        -1 /* this device.*/,
+                        {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},  // doesn't matter
+                        0});
+        }
+        else {
+            setRoutingTable({device->ip, (ip_t)~0 /* single IP */,
+                        -1 /* this device.*/,
+                        {0xff, 0xff, 0xff, 0xff, 0xff, 0xff},  // doesn't matter
+                        0});
+        }
     }
     return 0;
 }
@@ -57,8 +65,8 @@ static int announceRoutingTable(const std::vector<int> &interfaces) {
     return 0;
 }
 
-void announceServiceWorker(const std::vector<int> interfaces) {
-    if(initRoutingTable(interfaces) == -1) {
+void announceServiceWorker(const std::vector<int> interfaces, bool is_gateway) {
+    if(initRoutingTable(interfaces, is_gateway) == -1) {
         fprintf(stderr, "[IP Error] initRoutingTable failed\n");
         return;
     }
