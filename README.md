@@ -1,7 +1,7 @@
-# Lab2
-Author: Zizheng Guo
+# Network stack on PCAP
+Author: Zizheng Guo (Kindly credit me if it helps you:)
 
-I'm still working on this. Kindly credit me if it helps you.
+This is a course project of [Computer Networks](http://soar.group/CompNets/Fall18/). Its goal is to implement TCP, IP and Ethernet on top of the frame i/o interface provided by libpcap.
 
 ## Compile
 ```bash
@@ -10,6 +10,8 @@ cd build
 cmake ..
 make
 ```
+
+<!--
 
 ## Tips
 I wrote some useful scripts outside this repo.
@@ -31,4 +33,5 @@ else
 fi
 unset color_prompt force_color_prompt
 ```
+-->
 
