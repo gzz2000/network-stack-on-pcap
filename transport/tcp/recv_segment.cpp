@@ -131,7 +131,7 @@ void tcp_conn_recv_segment(socket_t src, socket_t dest, Connection &conn,
                         segsummary.c_str());
             }
         }
-        else if(tcphdr->ack == conn.seq) {
+        else {
             // receive a normal ACK, and our FIN not yet arrived at remote
             if(tcphdr->seq == conn.ack && (tcphdr->flags & TH_FIN)) {
                 conn.status = STATUS_LAST_ACK;
